@@ -3,6 +3,7 @@ use core::convert::TryFrom;
 
 use tokio::runtime::Runtime as TokioRuntime;
 
+pub use self::anoma::AnomaChain;
 pub use cosmos::CosmosSdkChain;
 
 use ibc::core::ics02_client::client_consensus::{
@@ -48,6 +49,7 @@ use crate::light_client::LightClient;
 use self::client::ClientSettings;
 use self::tx::TrackedMsgs;
 
+pub mod anoma;
 pub mod client;
 pub mod cosmos;
 pub mod counterparty;
@@ -95,7 +97,7 @@ pub trait ChainEndpoint: Sized {
     /// Type of the client state for this chain
     type ClientState: ClientState;
 
-    type LightClient: LightClient<Self>;
+    type LightClient: LightClient<Self::Header, Self::LightBlock>;
 
     /// Constructs the chain
     fn bootstrap(config: ChainConfig, rt: Arc<TokioRuntime>) -> Result<Self, Error>;

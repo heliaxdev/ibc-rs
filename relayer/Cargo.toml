@@ -25,6 +25,9 @@ ibc           = { version = "0.14.0", path = "../modules" }
 ibc-proto     = { version = "0.17.1", path = "../proto" }
 ibc-telemetry = { version = "0.14.0", path = "../telemetry", optional = true }
 
+anoma_apps = { git = "https://github.com/anoma/anoma", branch = "yuji/update-ibc-rs" }
+anoma = { git = "https://github.com/anoma/anoma", branch = "yuji/update-ibc-rs" }
+
 subtle-encoding = "0.5"
 humantime-serde = "1.1.1"
 serde = "1.0"
@@ -72,6 +75,7 @@ features = ["serde"]
 version = "0.4.0"
 features = ["num-bigint", "serde"]
 
+# TODO revert after rebase
 [dependencies.tendermint]
 version = "=0.23.6"
 features = ["secp256k1"]

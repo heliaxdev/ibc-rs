@@ -31,7 +31,7 @@ use ibc::{
 };
 use tracing::trace;
 
-use crate::{chain::CosmosSdkChain, config::ChainConfig, error::Error};
+use crate::{config::ChainConfig, error::Error};
 
 use super::Verified;
 
@@ -41,7 +41,7 @@ pub struct LightClient {
     io: components::io::ProdIo,
 }
 
-impl super::LightClient<CosmosSdkChain> for LightClient {
+impl super::LightClient<TmHeader, LightBlock> for LightClient {
     fn header_and_minimal_set(
         &mut self,
         trusted: ibc::Height,
