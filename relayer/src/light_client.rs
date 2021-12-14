@@ -4,6 +4,7 @@ use ibc::core::ics02_client::misbehaviour::MisbehaviourEvidence;
 use crate::chain::ChainEndpoint;
 use crate::error;
 use ibc::core::ics02_client::events::UpdateClient;
+use ibc::core::ics02_client::header::Header;
 
 pub mod tendermint;
 
@@ -24,14 +25,18 @@ pub struct Verified<H> {
 }
 
 /// Defines a client from the point of view of the relayer.
-pub trait LightClient<C: ChainEndpoint>: Send + Sync {
+pub trait LightClient<H, LB>
+    where
+        H: Header,
+        LB: Send + Sync,
+{
     /// Fetch and verify a header, and return its minimal supporting set.
     fn header_and_minimal_set(
         &mut self,
         trusted: ibc::Height,
         target: ibc::Height,
         client_state: &AnyClientState,
-    ) -> Result<Verified<C::Header>, error::Error>;
+    ) -> Result<Verified<H>, error::Error>;
 
     /// Fetch a header from the chain at the given height and verify it.
     fn verify(
@@ -39,7 +44,7 @@ pub trait LightClient<C: ChainEndpoint>: Send + Sync {
         trusted: ibc::Height,
         target: ibc::Height,
         client_state: &AnyClientState,
-    ) -> Result<Verified<C::LightBlock>, error::Error>;
+    ) -> Result<Verified<LB>, error::Error>;
 
     /// Given a client update event that includes the header used in a client update,
     /// look for misbehaviour by fetching a header at same or latest height.
@@ -50,5 +55,5 @@ pub trait LightClient<C: ChainEndpoint>: Send + Sync {
     ) -> Result<Option<MisbehaviourEvidence>, error::Error>;
 
     /// Fetch a header from the chain at the given height, without verifying it
-    fn fetch(&mut self, height: ibc::Height) -> Result<C::LightBlock, error::Error>;
+    fn fetch(&mut self, height: ibc::Height) -> Result<LB, error::Error>;
 }

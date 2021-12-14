@@ -309,6 +309,10 @@ define_error! {
                 e.expected, e.got)
             },
 
+        BorshDecode
+            [ TraceError<std::io::Error> ]
+            |e| { "Error decoding with borsh" },
+
         ProtobufDecode
             { payload_type: String }
             [ TraceError<DecodeError> ]

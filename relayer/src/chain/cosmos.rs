@@ -2125,7 +2125,7 @@ impl ChainEndpoint for CosmosSdkChain {
     }
 }
 
-fn packet_query(request: &QueryPacketEventDataRequest, seq: Sequence) -> Query {
+pub fn packet_query(request: &QueryPacketEventDataRequest, seq: Sequence) -> Query {
     tendermint_rpc::query::Query::eq(
         format!("{}.packet_src_channel", request.event_id.as_str()),
         request.source_channel_id.to_string(),
@@ -2148,7 +2148,7 @@ fn packet_query(request: &QueryPacketEventDataRequest, seq: Sequence) -> Query {
     )
 }
 
-fn header_query(request: &QueryClientEventRequest) -> Query {
+pub fn header_query(request: &QueryClientEventRequest) -> Query {
     tendermint_rpc::query::Query::eq(
         format!("{}.client_id", request.event_id.as_str()),
         request.client_id.to_string(),
@@ -2162,7 +2162,7 @@ fn header_query(request: &QueryClientEventRequest) -> Query {
     )
 }
 
-fn tx_hash_query(request: &QueryTxHash) -> Query {
+pub fn tx_hash_query(request: &QueryTxHash) -> Query {
     tendermint_rpc::query::Query::eq("tx.hash", request.0.to_string())
 }
 
@@ -2173,7 +2173,7 @@ fn tx_hash_query(request: &QueryTxHash) -> Query {
 // was committed in some Tx along with the packet with sequence 4, the response
 // will include both packets. For this reason, we iterate all packets in the Tx,
 // searching for those that match (which must be a single one).
-fn packet_from_tx_search_response(
+pub fn packet_from_tx_search_response(
     chain_id: &ChainId,
     request: &QueryPacketEventDataRequest,
     seq: Sequence,
@@ -2199,7 +2199,7 @@ fn packet_from_tx_search_response(
 // for client Y at consensus height H'. This is the reason the code iterates all event fields in the
 // returned Tx to retrieve the relevant ones.
 // Returns `None` if no matching event was found.
-fn update_client_from_tx_search_response(
+pub fn update_client_from_tx_search_response(
     chain_id: &ChainId,
     request: &QueryClientEventRequest,
     response: ResultTx,
@@ -2229,7 +2229,10 @@ fn update_client_from_tx_search_response(
         .map(IbcEvent::UpdateClient)
 }
 
-fn all_ibc_events_from_tx_search_response(chain_id: &ChainId, response: ResultTx) -> Vec<IbcEvent> {
+pub fn all_ibc_events_from_tx_search_response(
+    chain_id: &ChainId,
+    response: ResultTx,
+) -> Vec<IbcEvent> {
     let height = ICSHeight::new(chain_id.version(), u64::from(response.height));
     let deliver_tx_result = response.tx_result;
     if deliver_tx_result.code.is_err() {
@@ -2248,7 +2251,7 @@ fn all_ibc_events_from_tx_search_response(chain_id: &ChainId, response: ResultTx
     result
 }
 
-fn filter_matching_event(
+pub fn filter_matching_event(
     event: Event,
     request: &QueryPacketEventDataRequest,
     seq: Sequence,
