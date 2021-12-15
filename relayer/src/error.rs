@@ -494,7 +494,6 @@ define_error! {
                 )
             },
 
-
         TxIndexingDisabled
             { chain_id: ChainId }
             |e| {
@@ -503,6 +502,10 @@ define_error! {
                     e.chain_id
                 )
             },
+
+        AnomaWallet
+            [ TraceError<anoma_apps::wallet::FindKeyError> ]
+            |_| { "The keypair was not found" },
     }
 }
 

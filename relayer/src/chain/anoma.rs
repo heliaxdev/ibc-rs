@@ -1,15 +1,20 @@
 use alloc::sync::Arc;
 use core::str::FromStr;
 use core::time::Duration;
-use std::{fmt, thread, time::Instant};
+use std::path::Path;
+use std::{thread, time::Instant};
 
 use anoma::ledger::ibc::storage;
+use anoma::proto::Tx;
 use anoma::types::address::{Address, InternalAddress};
+use anoma::types::storage::Epoch;
 use anoma::types::storage::{DbKeySeg, Key, KeySeg};
+use anoma::types::token::Amount;
+use anoma::types::transaction::GasLimit;
 use anoma::types::transaction::{Fee, WrapperTx};
 use anoma_apps::node::ledger::rpc::{Path as AnomaPath, PrefixValue};
-use anoma_apps::client::rpc::query_epoch;
-use anoma_apps::cli::args::Query as AnomaQuery;
+use anoma_apps::wallet::Wallet;
+use anoma_apps::wasm_loader;
 use borsh::{BorshDeserialize, BorshSerialize};
 use chrono::DateTime;
 use ibc::clients::ics07_tendermint::client_state::{AllowUpdate, ClientState};
@@ -20,17 +25,13 @@ use ibc::core::ics02_client::client_state::{
     AnyClientState, ClientState as Ics02ClientState, IdentifiedAnyClientState,
 };
 use ibc::core::ics03_connection::connection::{ConnectionEnd, IdentifiedConnectionEnd};
-use ibc::core::ics04_channel::channel::{
-    ChannelEnd, IdentifiedChannelEnd, QueryPacketEventDataRequest,
-};
-use ibc::core::ics04_channel::events as ChannelEvents;
-use ibc::core::ics04_channel::packet::{Packet, PacketMsgType, Sequence};
+use ibc::core::ics04_channel::channel::{ChannelEnd, IdentifiedChannelEnd};
+use ibc::core::ics04_channel::packet::{PacketMsgType, Sequence};
 use ibc::core::ics23_commitment::commitment::CommitmentPrefix;
 use ibc::core::ics23_commitment::merkle::convert_tm_to_ics_merkle_proof;
 use ibc::core::ics24_host::identifier::{
     ChainId, ChannelId, ClientId, ConnectionId, PortChannelId, PortId,
 };
-use ibc::core::ics24_host::Path;
 use ibc::events::IbcEvent;
 use ibc::query::{QueryTxHash, QueryTxRequest};
 use ibc::signer::Signer;
@@ -48,30 +49,36 @@ use ibc_proto::ibc::core::commitment::v1::MerkleProof;
 use ibc_proto::ibc::core::connection::v1::{
     QueryClientConnectionsRequest, QueryConnectionsRequest,
 };
+use itertools::Itertools;
 use prost_types::Any;
-use tendermint::abci::{Code, Path as AbciPath};
+use tendermint::abci::Code;
 use tendermint_light_client::types::LightBlock as TMLightBlock;
-use tendermint_rpc::{
-    endpoint::broadcast::tx_sync::Response, endpoint::status, Client, HttpClient, Order,
-};
+use tendermint_rpc::{endpoint::broadcast::tx_sync::Response, Client, HttpClient, Order};
 use tokio::runtime::Runtime as TokioRuntime;
 
 use super::cosmos;
+use super::cosmos::TxSyncResult;
 use crate::config::ChainConfig;
+use crate::error::Error;
 use crate::event::monitor::{EventMonitor, EventReceiver};
 use crate::keyring::{KeyEntry, KeyRing};
 use crate::light_client::tendermint::LightClient as TmLightClient;
 use crate::light_client::LightClient;
 use crate::light_client::Verified;
-use crate::{chain::QueryResponse, chain::StatusResponse, event::monitor::TxMonitorCmd};
-use crate::{config::types::Memo, error::Error};
+use crate::{chain::StatusResponse, event::monitor::TxMonitorCmd};
 
 use super::{ChainEndpoint, HealthCheck};
+
+const BASE_WALLET_DIR: &str = "anoma_wallet";
+const WASM_DIR: &str = "anoma_wasm";
+const WASM_FILE: &str = "ibc.wasm";
+const DEFAULT_MAX_GAS: u64 = 100_000;
 
 pub struct AnomaChain {
     config: ChainConfig,
     rpc_client: HttpClient,
     rt: Arc<TokioRuntime>,
+    wallet: Wallet,
     keybase: KeyRing,
 }
 
@@ -84,35 +91,105 @@ impl AnomaChain {
         self.config.max_tx_size.into()
     }
 
-    fn send_tx(&mut self, proto_msg: Any) -> Result<Response, Error> {
-        let tx_code = read_wasm(code_path);
-        let tx = Tx::new(tx_code, proto_msg.encode_vec());
+    fn send_tx(&mut self, proto_msg: &Any) -> Result<Response, Error> {
+        let tx_code = wasm_loader::read_wasm(WASM_DIR, WASM_FILE);
+        let mut tx_data = vec![];
+        prost::Message::encode(proto_msg, &mut tx_data)
+            .map_err(|e| Error::protobuf_encode(String::from("Message"), e))?;
+        let tx = Tx::new(tx_code, Some(tx_data));
+        let keypair = self
+            .wallet
+            .find_key(self.config.key_name)
+            .map_err(Error::anoma_wallet)?;
         let signed_tx = tx.sign(&keypair);
 
-        // TODO estimate the gas cost
+        // TODO estimate the gas cost?
 
-        let epoch = self.rt.block_on(query_epoch(AnomaQuery {
-            ledger_address: self.config.rpc_addr.into(),
-        }));
+        let gas_limit = GasLimit::from(self.config.max_gas.unwrap_or(DEFAULT_MAX_GAS));
+
+        let epoch = self.query_epoch()?;
         let tx = WrapperTx::new(
             Fee {
-                amount: fee_amount,
-                token: fee_token,
+                amount: Amount::from(0),
+                token: Address::from_str("XAN").unwrap(),
             },
-            keypair,
+            &keypair,
             epoch,
             gas_limit,
             tx,
         );
-        match self.rt.block_on(broadcast_tx(args.ledger_address.clone(), tx, keypair)) {
-            Ok(result) => (ctx, result.initialized_accounts),
-            Err(err) => {
-                eprintln!(
-                    "Encountered error while broadcasting transaction: {}",
-                    err
-                );
-                safe_exit(1)
-            }
+
+        // TODO ABCI++
+        let tx = tx
+            .sign(&keypair)
+            .expect("Signing of the wrapper transaction should not fail");
+        let tx_bytes = tx.to_bytes();
+
+        // TODO need to subscribe with the websocket client?
+
+        self.rt
+            .block_on(self.rpc_client.broadcast_tx_sync(tx_bytes.into()))
+            .map_err(|e| Error::rpc(self.config.rpc_addr.clone(), e))
+    }
+
+    fn wait_for_block_commits(
+        &self,
+        mut tx_sync_results: Vec<TxSyncResult>,
+    ) -> Result<Vec<TxSyncResult>, Error> {
+        // TODO same as cosmos.rs
+        use crate::util::retry::{retry_with_index, RetryResult};
+
+        let hashes = tx_sync_results
+            .iter()
+            .map(|res| res.response.hash.to_string())
+            .join(", ");
+
+        // Wait a little bit initially
+        thread::sleep(Duration::from_millis(200));
+
+        let start = Instant::now();
+        let result = retry_with_index(
+            cosmos::retry_strategy::wait_for_block_commits(self.config.rpc_timeout),
+            |index| {
+                if cosmos::all_tx_results_found(&tx_sync_results) {
+                    // All transactions confirmed
+                    return RetryResult::Ok(());
+                }
+
+                for TxSyncResult { response, events } in tx_sync_results.iter_mut() {
+                    // If this transaction was not committed, determine whether it was because it failed
+                    // or because it hasn't been committed yet.
+                    if cosmos::empty_event_present(events) {
+                        // If the transaction failed, replace the events with an error,
+                        // so that we don't attempt to resolve the transaction later on.
+                        if response.code.value() != 0 {
+                            *events = vec![IbcEvent::ChainError(format!(
+                                "deliver_tx on chain {} for Tx hash {} reports error: code={:?}, log={:?}",
+                                self.id(), response.hash, response.code, response.log
+                            ))];
+
+                            // Otherwise, try to resolve transaction hash to the corresponding events.
+                        } else if let Ok(events_per_tx) =
+                            self.query_txs(QueryTxRequest::Transaction(QueryTxHash(response.hash)))
+                        {
+                            // If we get events back, progress was made, so we replace the events
+                            // with the new ones. in both cases we will check in the next iteration
+                            // whether or not the transaction was fully committed.
+                            if !events_per_tx.is_empty() {
+                                *events = events_per_tx;
+                            }
+                        }
+                    }
+                }
+                RetryResult::Retry(index)
+            },
+        );
+
+        match result {
+            // All transactions confirmed
+            Ok(()) => Ok(tx_sync_results),
+            // Did not find confirmation
+            Err(_) => Err(Error::tx_no_confirmation()),
         }
     }
 
@@ -173,6 +250,22 @@ impl AnomaChain {
             Code::Err(err) => return Err(Error::abci_query(response)),
         }
     }
+
+    fn query_epoch(&self) -> Result<Epoch, Error> {
+        let path = AnomaPath::Epoch;
+        let data = vec![];
+        let response = self
+            .rt
+            .block_on(
+                self.rpc_client
+                    .abci_query(Some(path.into()), data, None, false),
+            )
+            .map_err(|e| Error::rpc(self.config.rpc_addr.clone(), e))?;
+        match response.code {
+            Code::Ok => Epoch::try_from_slice(&response.value[..]).map_err(Error::borsh_decode),
+            Code::Err(err) => return Err(Error::abci_query(response)),
+        }
+    }
 }
 
 impl ChainEndpoint for AnomaChain {
@@ -186,7 +279,12 @@ impl ChainEndpoint for AnomaChain {
         let rpc_client = HttpClient::new(config.rpc_addr.clone())
             .map_err(|e| Error::rpc(config.rpc_addr.clone(), e))?;
 
-        // Initialize key store and load key
+        // Load the wallet
+        // TODO when no account is initialized
+        let wallet_path = Path::new(BASE_WALLET_DIR).join(config.id.to_string());
+        let wallet = Wallet::load_or_new(&wallet_path);
+
+        // not used in Anoma
         let keybase = KeyRing::new(config.key_store_type, &config.account_prefix, &config.id)
             .map_err(Error::key_base)?;
 
@@ -194,15 +292,13 @@ impl ChainEndpoint for AnomaChain {
             config,
             rpc_client,
             rt,
+            wallet,
             keybase,
         })
     }
 
     fn init_light_client(&self) -> Result<Self::LightClient, Error> {
         use tendermint_light_client::types::PeerId;
-
-        crate::time!("init_light_client");
-
         let peer_id: PeerId = self
             .rt
             .block_on(self.rpc_client.status())
@@ -218,8 +314,6 @@ impl ChainEndpoint for AnomaChain {
         &self,
         rt: Arc<TokioRuntime>,
     ) -> Result<(EventReceiver, TxMonitorCmd), Error> {
-        crate::time!("init_event_monitor");
-
         let (mut event_monitor, event_receiver, monitor_tx) = EventMonitor::new(
             self.config.id.clone(),
             self.config.websocket_addr.clone(),
@@ -264,32 +358,9 @@ impl ChainEndpoint for AnomaChain {
             return Ok(vec![]);
         }
         let mut tx_sync_results = vec![];
-
-        let mut n = 0;
-        let mut size = 0;
-        let mut msg_batch = vec![];
+        let events_per_tx = vec![IbcEvent::default(); proto_msgs.len()];
         for msg in proto_msgs.iter() {
-            msg_batch.push(msg.clone());
-            let mut buf = Vec::new();
-            prost::Message::encode(msg, &mut buf)
-                .map_err(|e| Error::protobuf_encode(String::from("Message"), e))?;
-            n += 1;
-            size += buf.len();
-            if n >= self.max_msg_num() || size >= self.max_tx_size() {
-                let events_per_tx = vec![IbcEvent::default(); msg_batch.len()];
-                let tx_sync_result = self.send_tx(msg_batch)?;
-                tx_sync_results.push(TxSyncResult {
-                    response: tx_sync_result,
-                    events: events_per_tx,
-                });
-                n = 0;
-                size = 0;
-                msg_batch = vec![];
-            }
-        }
-        if !msg_batch.is_empty() {
-            let events_per_tx = vec![IbcEvent::default(); msg_batch.len()];
-            let tx_sync_result = self.send_tx(msg_batch)?;
+            let tx_sync_result = self.send_tx(msg)?;
             tx_sync_results.push(TxSyncResult {
                 response: tx_sync_result,
                 events: events_per_tx,
@@ -315,7 +386,7 @@ impl ChainEndpoint for AnomaChain {
     }
 
     fn get_signer(&mut self) -> Result<Signer, Error> {
-        unimplemented!()
+        Ok(Signer::new(self.config.key_name))
     }
 
     fn config(&self) -> ChainConfig {
@@ -323,6 +394,7 @@ impl ChainEndpoint for AnomaChain {
     }
 
     fn get_key(&mut self) -> Result<KeyEntry, Error> {
+        // TODO get the key from the wallet
         let key = self
             .keybase()
             .get_key(&self.config.key_name)
@@ -332,6 +404,7 @@ impl ChainEndpoint for AnomaChain {
     }
 
     fn add_key(&mut self, key_name: &str, key: KeyEntry) -> Result<(), Error> {
+        // TODO add the key to the wallet
         self.keybase_mut()
             .add_key(key_name, key)
             .map_err(Error::key_base)?;
@@ -346,6 +419,7 @@ impl ChainEndpoint for AnomaChain {
     }
 
     fn query_status(&self) -> Result<StatusResponse, Error> {
+        // TODO same as cosmos.rs
         let status = self
             .rt
             .block_on(self.rpc_client.status())
@@ -495,7 +569,9 @@ impl ChainEndpoint for AnomaChain {
         let connection_id =
             ConnectionId::from_str(&request.connection).map_err(|e| Error::query(e.to_string()))?;
         let req = QueryChannelsRequest { pagination: None };
-        let channels = self.query_channels(req)?.into_iter()
+        let channels = self
+            .query_channels(req)?
+            .into_iter()
             .filter(|c| c.channel_end.connection_hops_matches(&vec![connection_id]))
             .collect();
 
@@ -571,8 +647,8 @@ impl ChainEndpoint for AnomaChain {
         let prefix = ibc_key(path)?;
         let mut states = vec![];
         for (key, commitment) in self.query_prefix::<String>(prefix)? {
-            let (port_id, channel_id, sequence) = storage::port_channel_sequence_id(&key)
-                .map_err(|e| Error::query(e.to_string()))?;
+            let (port_id, channel_id, sequence) =
+                storage::port_channel_sequence_id(&key).map_err(|e| Error::query(e.to_string()))?;
             states.push(PacketState {
                 port_id: port_id.to_string(),
                 channel_id: channel_id.to_string(),
@@ -598,8 +674,8 @@ impl ChainEndpoint for AnomaChain {
         let prefix = ibc_key(path)?;
         let mut received_seqs = vec![];
         for (key, _) in self.query_prefix::<u64>(prefix)? {
-            let (_, _, sequence) = storage::port_channel_sequence_id(&key)
-                .map_err(|e| Error::query(e.to_string()))?;
+            let (_, _, sequence) =
+                storage::port_channel_sequence_id(&key).map_err(|e| Error::query(e.to_string()))?;
             received_seqs.push(u64::from(sequence))
         }
 
@@ -650,8 +726,8 @@ impl ChainEndpoint for AnomaChain {
         let prefix = ibc_key(path)?;
         let mut received_seqs = vec![];
         for (key, _) in self.query_prefix::<Vec<u8>>(prefix)? {
-            let (_, _, sequence) = storage::port_channel_sequence_id(&key)
-                .map_err(|e| Error::query(e.to_string()))?;
+            let (_, _, sequence) =
+                storage::port_channel_sequence_id(&key).map_err(|e| Error::query(e.to_string()))?;
             received_seqs.push(u64::from(sequence));
         }
 
@@ -672,7 +748,10 @@ impl ChainEndpoint for AnomaChain {
             .map_err(|_| Error::query(format!("invalid port ID {}", request.port_id)))?;
         let channel_id = ChannelId::from_str(&request.channel_id)
             .map_err(|_| Error::query(format!("invalid channel ID {}", request.channel_id)))?;
-        let port_channel_id = PortChannelId { port_id, channel_id };
+        let port_channel_id = PortChannelId {
+            port_id,
+            channel_id,
+        };
         let key = storage::next_sequence_recv_key(&port_channel_id);
         let (seq, _) = self.query::<u64>(key, false)?;
 
@@ -891,7 +970,10 @@ impl ChainEndpoint for AnomaChain {
         channel_id: &ChannelId,
         _height: ICSHeight,
     ) -> Result<(ChannelEnd, MerkleProof), Error> {
-        let port_channel_id = PortChannelId { port_id, channel_id };
+        let port_channel_id = PortChannelId {
+            port_id: port_id.clone(),
+            channel_id: channel_id.clone(),
+        };
         let key = storage::channel_key(&port_channel_id);
         let (channel_end, proof) = self.query(key, false)?;
 
@@ -921,7 +1003,10 @@ impl ChainEndpoint for AnomaChain {
                 self.query::<Vec<u8>>(key, true)?
             }
             PacketMsgType::TimeoutOrdered => {
-                let port_channel_id = PortChannelId { port_id, channel_id };
+                let port_channel_id = PortChannelId {
+                    port_id,
+                    channel_id,
+                };
                 let key = storage::next_sequence_recv_key(&port_channel_id);
                 let (seq, proof) = self.query::<u64>(key, false)?;
                 // TODO how to encode?
@@ -979,14 +1064,6 @@ impl ChainEndpoint for AnomaChain {
         Ok((target, supporting))
     }
 }
-
-pub struct TxSyncResult {
-    // the broadcast_tx_sync response
-    response: Response,
-    // the events generated by a Tx once executed
-    events: Vec<IbcEvent>,
-}
-
 
 /// TODO make it public in Anoma
 /// Returns a key of the IBC-related data
