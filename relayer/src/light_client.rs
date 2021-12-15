@@ -26,9 +26,9 @@ pub struct Verified<H> {
 
 /// Defines a client from the point of view of the relayer.
 pub trait LightClient<H, LB>
-    where
-        H: Header,
-        LB: Send + Sync,
+where
+    H: Header,
+    LB: Send + Sync,
 {
     /// Fetch and verify a header, and return its minimal supporting set.
     fn header_and_minimal_set(
