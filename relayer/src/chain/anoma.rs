@@ -53,6 +53,7 @@ use itertools::Itertools;
 use prost_types::Any;
 use tendermint::abci::Code;
 use tendermint_light_client::types::LightBlock as TMLightBlock;
+use tendermint_rpc::query::{EventType, Query};
 use tendermint_rpc::{endpoint::broadcast::tx_sync::Response, Client, HttpClient, Order};
 use tokio::runtime::Runtime as TokioRuntime;
 
@@ -83,14 +84,6 @@ pub struct AnomaChain {
 }
 
 impl AnomaChain {
-    fn max_msg_num(&self) -> usize {
-        self.config.max_msg_num.into()
-    }
-
-    fn max_tx_size(&self) -> usize {
-        self.config.max_tx_size.into()
-    }
-
     fn send_tx(&mut self, proto_msg: &Any) -> Result<Response, Error> {
         let tx_code = wasm_loader::read_wasm(WASM_DIR, WASM_FILE);
         let mut tx_data = vec![];
@@ -314,6 +307,7 @@ impl ChainEndpoint for AnomaChain {
         &self,
         rt: Arc<TokioRuntime>,
     ) -> Result<(EventReceiver, TxMonitorCmd), Error> {
+        // TODO same as cosmos.rs
         let (mut event_monitor, event_receiver, monitor_tx) = EventMonitor::new(
             self.config.id.clone(),
             self.config.websocket_addr.clone(),
@@ -338,7 +332,34 @@ impl ChainEndpoint for AnomaChain {
     }
 
     fn health_check(&self) -> Result<HealthCheck, Error> {
-        // TODO health check
+        self.rt.block_on(self.rpc_client.health()).map_err(|e| {
+            Error::health_check_json_rpc(
+                self.config.id.clone(),
+                self.config.rpc_addr.to_string(),
+                "/health".to_string(),
+                e,
+            )
+        })?;
+
+        self.rt
+            .block_on(self.rpc_client.tx_search(
+                Query::from(EventType::NewBlock),
+                false,
+                1,
+                1,
+                Order::Ascending,
+            ))
+            .map_err(|e| {
+                Error::health_check_json_rpc(
+                    self.config.id.clone(),
+                    self.config.rpc_addr.to_string(),
+                    "/tx_search".to_string(),
+                    e,
+                )
+            })?;
+
+        // TODO version check
+
         Ok(HealthCheck::Healthy)
     }
 
@@ -382,7 +403,15 @@ impl ChainEndpoint for AnomaChain {
         &mut self,
         proto_msgs: Vec<Any>,
     ) -> Result<Vec<Response>, Error> {
-        todo!()
+        if proto_msgs.is_empty() {
+            return Ok(vec![]);
+        }
+        let mut responses = vec![];
+        for msg in proto_msgs.iter() {
+            responses.push(self.send_tx(msg)?);
+        }
+
+        Ok(responses)
     }
 
     fn get_signer(&mut self) -> Result<Signer, Error> {
