@@ -21,12 +21,13 @@ profiling = []
 telemetry = ["ibc-telemetry"]
 
 [dependencies]
-ibc           = { version = "0.14.0", path = "../modules" }
-ibc-proto     = { version = "0.17.1", path = "../proto" }
-ibc-telemetry = { version = "0.14.0", path = "../telemetry", optional = true }
+# need to use the same ibc as Anoma
+ibc           = { git = "https://github.com/heliaxdev/ibc-rs", branch = "yuji/v0.14.0_tm_v0.23.5" }
+ibc-proto     = { git = "https://github.com/heliaxdev/ibc-rs", branch = "yuji/v0.14.0_tm_v0.23.5" }
+ibc-telemetry = { git = "https://github.com/heliaxdev/ibc-rs", branch = "yuji/v0.14.0_tm_v0.23.5", optional = true }
 
-anoma_apps = { git = "https://github.com/anoma/anoma", branch = "yuji/update-ibc-rs" }
-anoma = { git = "https://github.com/anoma/anoma", branch = "yuji/update-ibc-rs" }
+anoma_apps = { git = "https://github.com/anoma/anoma", branch = "yuji/query_with_height" }
+anoma = { git = "https://github.com/anoma/anoma", branch = "yuji/query_with_height" }
 
 subtle-encoding = "0.5"
 humantime-serde = "1.1.1"
@@ -66,6 +67,7 @@ humantime = "2.1.0"
 nanoid = "0.4.0"
 regex = "1.5.5"
 moka = "0.8.2"
+borsh = "0.9.0"
 
 [dependencies.num-bigint]
 version = "0.4"
@@ -97,7 +99,8 @@ default-features = false
 version = "=0.23.6"
 
 [dev-dependencies]
-ibc = { version = "0.14.0", path = "../modules", features = ["mocks"] }
+# need to use the same tendermint-rs version
+ibc = { git = "https://github.com/heliaxdev/ibc-rs", branch = "yuji/v0.14.0_tm_v0.23.5", features = ["mocks"] }
 serial_test = "0.6.0"
 env_logger = "0.9.0"
 tracing-subscriber = { version = "0.3.11", features = ["fmt", "env-filter", "json"] }
