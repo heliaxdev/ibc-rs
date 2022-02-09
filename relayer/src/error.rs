@@ -311,7 +311,7 @@ define_error! {
 
         BorshDecode
             [ TraceError<std::io::Error> ]
-            |e| { "Error decoding with borsh" },
+            |e| { format!("Error decoding with borsh: {}", e) },
 
         ProtobufDecode
             { payload_type: String }

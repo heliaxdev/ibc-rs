@@ -14,8 +14,8 @@ description  = """
 """
 
 [dependencies]
-ibc               = { version = "0.12.0", path = "../modules" }
-ibc-relayer       = { version = "0.12.0", path = "../relayer" }
+ibc         = { git = "https://github.com/heliaxdev/ibc-rs", branch = "yuji/v0.12.0_tm_v0.23.5" }
+ibc-relayer = { version = "0.12.0", path = "../relayer" }
 
 crossbeam-channel = "0.5"
 rouille           = "3.5"

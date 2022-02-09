@@ -25,7 +25,7 @@ pub struct Verified<H> {
 }
 
 /// Defines a client from the point of view of the relayer.
-pub trait LightClient<H, LB>
+pub trait LightClient<H, LB>: Send + Sync
 where
     H: Header,
     LB: Send + Sync,

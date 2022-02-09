@@ -26,10 +26,10 @@ telemetry   = ["ibc-relayer/telemetry", "ibc-telemetry"]
 rest-server = ["ibc-relayer-rest"]
 
 [dependencies]
-ibc              = { version = "0.12.0", path = "../modules", features = ["std", "clock"] }
+ibc           = { git = "https://github.com/heliaxdev/ibc-rs", branch = "yuji/v0.12.0_tm_v0.23.5", features = ["std", "clock"] }
 ibc-relayer      = { version = "0.12.0", path = "../relayer" }
-ibc-proto        = { version = "0.16.0", path = "../proto" }
-ibc-telemetry    = { version = "0.12.0", path = "../telemetry", optional = true }
+ibc-proto     = { git = "https://github.com/heliaxdev/ibc-rs", branch = "yuji/v0.12.0_tm_v0.23.5", default-features = false, features = ["std", "tonic"] }
+ibc-telemetry = { git = "https://github.com/heliaxdev/ibc-rs", branch = "yuji/v0.12.0_tm_v0.23.5", optional = true }
 ibc-relayer-rest = { version = "0.12.0", path = "../relayer-rest", optional = true }
 
 clap = { version = "3.1", features = ["cargo"] }
