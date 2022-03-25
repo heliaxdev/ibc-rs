@@ -7,13 +7,12 @@ use std::thread;
 use anoma::ledger::ibc::storage;
 use anoma::proto::Tx;
 use anoma::types::address::{Address, InternalAddress};
-use anoma::types::key::ed25519::Keypair;
-use anoma::types::storage::Epoch;
-use anoma::types::storage::{DbKeySeg, Key, KeySeg};
+use anoma::types::key::common::SecretKey;
+use anoma::types::storage::{Epoch, Key, KeySeg, PrefixValue};
 use anoma::types::token::Amount;
 use anoma::types::transaction::GasLimit;
 use anoma::types::transaction::{Fee, WrapperTx};
-use anoma_apps::node::ledger::rpc::{Path as AnomaPath, PrefixValue};
+use anoma_apps::node::ledger::rpc::Path as AnomaPath;
 use anoma_apps::wallet::Wallet;
 use anoma_apps::wasm_loader;
 use borsh::BorshDeserialize;
@@ -28,7 +27,6 @@ use ibc::core::ics02_client::error::Error as ClientError;
 use ibc::core::ics03_connection::connection::{ConnectionEnd, IdentifiedConnectionEnd};
 use ibc::core::ics04_channel::channel::{ChannelEnd, IdentifiedChannelEnd};
 use ibc::core::ics04_channel::packet::{PacketMsgType, Sequence};
-use ibc::core::ics04_channel::Version as ChannelVersion;
 use ibc::core::ics23_commitment::commitment::CommitmentPrefix;
 use ibc::core::ics23_commitment::merkle::convert_tm_to_ics_merkle_proof;
 use ibc::core::ics24_host::identifier::{
@@ -61,7 +59,6 @@ use tokio::runtime::Runtime as TokioRuntime;
 use super::cosmos;
 use super::cosmos::TxSyncResult;
 use super::tx::TrackedMsgs;
-use crate::chain::handle::requests::AppVersion;
 use crate::chain::StatusResponse;
 use crate::config::ChainConfig;
 use crate::error::Error;
@@ -83,7 +80,7 @@ pub struct AnomaChain {
     config: ChainConfig,
     rpc_client: HttpClient,
     rt: Arc<TokioRuntime>,
-    keypair: Keypair,
+    secret_key: SecretKey,
     keybase: KeyRing,
 }
 
@@ -94,7 +91,7 @@ impl AnomaChain {
         prost::Message::encode(proto_msg, &mut tx_data)
             .map_err(|e| Error::protobuf_encode(String::from("Message"), e))?;
         let tx = Tx::new(tx_code, Some(tx_data));
-        let signed_tx = tx.sign(&self.keypair);
+        let signed_tx = tx.sign(&self.secret_key);
 
         // TODO estimate the gas cost?
 
@@ -106,15 +103,16 @@ impl AnomaChain {
                 amount: Amount::from(0),
                 token: Address::from_str("XAN").unwrap(),
             },
-            &self.keypair,
+            &self.secret_key,
             epoch,
             gas_limit,
             signed_tx,
+            Default::default(),
         );
 
         // TODO ABCI++
         let tx = wrapper_tx
-            .sign(&self.keypair)
+            .sign(&self.secret_key)
             .expect("Signing of the wrapper transaction should not fail");
         let tx_bytes = tx.to_bytes();
 
@@ -253,10 +251,10 @@ impl ChainEndpoint for AnomaChain {
         // TODO when no account is initialized
         let wallet_path = Path::new(BASE_WALLET_DIR).join(config.id.to_string());
         let mut wallet = Wallet::load_or_new(&wallet_path);
-        let keypair = wallet
+        let key = wallet
             .find_key(config.key_name.clone())
             .map_err(Error::anoma_wallet)?;
-        let keypair = std::rc::Rc::<Keypair>::try_unwrap(keypair).unwrap();
+        let secret_key = std::rc::Rc::<SecretKey>::try_unwrap(key).unwrap();
 
         // not used in Anoma, but the trait requires KeyRing
         let keybase = KeyRing::new(config.key_store_type, &config.account_prefix, &config.id)
@@ -266,7 +264,7 @@ impl ChainEndpoint for AnomaChain {
             config,
             rpc_client,
             rt,
-            keypair,
+            secret_key,
             keybase,
         })
     }
@@ -492,20 +490,13 @@ impl ChainEndpoint for AnomaChain {
         let mut states = vec![];
         for prefix_value in self.query_prefix(prefix)? {
             let PrefixValue { key, value } = prefix_value;
-            if key.to_string().contains("consensusStates") {
-                let height = match key.segments.get(4) {
-                    Some(DbKeySeg::StringSeg(s)) => {
-                        ICSHeight::from_str(s).map_err(|e| Error::query(e.to_string()))?
-                    }
-                    _ => return Err(Error::query(format!("no height in the key: {}", key))),
-                };
-                let consensus_state =
-                    AnyConsensusState::decode_vec(&value).map_err(Error::decode)?;
-                states.push(AnyConsensusStateWithHeight {
-                    height,
-                    consensus_state,
-                });
-            }
+            let height =
+                storage::consensus_height(&key).map_err(|e| Error::query(e.to_string()))?;
+            let consensus_state = AnyConsensusState::decode_vec(&value).map_err(Error::decode)?;
+            states.push(AnyConsensusStateWithHeight {
+                height,
+                consensus_state,
+            });
         }
 
         Ok(states)
@@ -1071,7 +1062,7 @@ impl ChainEndpoint for AnomaChain {
         Ok((target, supporting))
     }
 
-    fn query_app_version(&self, _request: AppVersion) -> Result<ChannelVersion, Error> {
+    fn ibc_version(&self) -> Result<Option<semver::Version>, Error> {
         unimplemented!()
     }
 }

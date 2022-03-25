@@ -14,10 +14,10 @@ description = """
 """
 
 [dependencies]
-ibc             = { git = "https://github.com/heliaxdev/ibc-rs", branch = "yuji/rebase_v0.23.5" }
+ibc             = { git = "https://github.com/heliaxdev/ibc-rs", branch = "yuji/v0.12.0_tm_v0.23.5" }
 ibc-relayer     = { path = "../../relayer" }
 ibc-relayer-cli = { path = "../../relayer-cli" }
-ibc-proto       = { git = "https://github.com/heliaxdev/ibc-rs", branch = "yuji/rebase_v0.23.5" }
+ibc-proto       = { git = "https://github.com/heliaxdev/ibc-rs", branch = "yuji/v0.12.0_tm_v0.23.5" }
 tendermint      = { git = "https://github.com/heliaxdev/tendermint-rs", branch = "yuji/rebase_v0.23.5" }
 tendermint-rpc  = { git = "https://github.com/heliaxdev/tendermint-rs", branch = "yuji/rebase_v0.23.5", features = ["http-client", "websocket-client"] }
 
