@@ -27,7 +27,7 @@ ibc-proto     = { git = "https://github.com/heliaxdev/ibc-rs", branch = "yuji/v0
 ibc-telemetry = { git = "https://github.com/heliaxdev/ibc-rs", branch = "yuji/v0.14.0_tm_v0.23.5", optional = true }
 
 anoma_apps = { git = "https://github.com/anoma/anoma", branch = "yuji/query_with_height" }
-anoma = { git = "https://github.com/anoma/anoma", branch = "yuji/query_with_height" }
+anoma = { git = "https://github.com/anoma/anoma", branch = "yuji/query_with_height", default-features = false, features = ["ABCI", "ibc-mocks-abci"] }
 
 subtle-encoding = "0.5"
 humantime-serde = "1.1.1"
@@ -67,7 +67,7 @@ humantime = "2.1.0"
 nanoid = "0.4.0"
 regex = "1.5.5"
 moka = "0.8.2"
-borsh = "0.9.0"
+borsh = "0.9.3"
 
 [dependencies.num-bigint]
 version = "0.4"
