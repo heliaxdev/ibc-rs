@@ -1,14 +1,11 @@
-use alloc::sync::Arc;
-
 use abscissa_core::clap::Parser;
 use abscissa_core::Runnable;
-use tokio::runtime::Runtime as TokioRuntime;
 
 use ibc::core::ics24_host::identifier::{ChainId, ConnectionId};
 use ibc_proto::ibc::core::connection::v1::QueryConnectionsRequest;
-use ibc_relayer::chain::{ChainEndpoint, CosmosSdkChain};
+use ibc_relayer::chain::handle::{ChainHandle, ProdChainHandle};
 
-use crate::conclude::{exit_with_unrecoverable_error, Output};
+use crate::conclude::Output;
 use crate::prelude::*;
 
 #[derive(Clone, Command, Debug, Parser)]
@@ -20,22 +17,9 @@ pub struct QueryConnectionsCmd {
 // hermes query connections ibc-0
 impl Runnable for QueryConnectionsCmd {
     fn run(&self) {
-        let config = app_config();
-
-        let chain_config = match config.find_chain(&self.chain_id) {
-            None => Output::error(format!(
-                "chain '{}' not found in configuration file",
-                self.chain_id
-            ))
-            .exit(),
-            Some(chain_config) => chain_config,
-        };
-
         debug!("Options: {:?}", self);
 
-        let rt = Arc::new(TokioRuntime::new().unwrap());
-        let chain = CosmosSdkChain::bootstrap(chain_config.clone(), rt)
-            .unwrap_or_else(exit_with_unrecoverable_error);
+        let chain = super::get_chain_handle::<ProdChainHandle>(&self.chain_id);
 
         let req = QueryConnectionsRequest {
             pagination: ibc_proto::cosmos::base::query::pagination::all(),

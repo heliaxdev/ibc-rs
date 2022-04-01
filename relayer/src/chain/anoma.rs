@@ -4,14 +4,16 @@ use core::time::Duration;
 use std::path::Path;
 use std::thread;
 
+use anoma::ledger::ibc::handler::commitment_prefix;
 use anoma::ledger::ibc::storage;
+use anoma::ledger::storage::{MerkleTree, Sha256Hasher};
 use anoma::proto::Tx;
 use anoma::types::address::{Address, InternalAddress};
-use anoma::types::key::common::SecretKey;
 use anoma::types::storage::{Epoch, Key, KeySeg, PrefixValue};
 use anoma::types::token::Amount;
 use anoma::types::transaction::GasLimit;
 use anoma::types::transaction::{Fee, WrapperTx};
+use anoma_apps::client::rpc::TxEventQuery;
 use anoma_apps::node::ledger::rpc::Path as AnomaPath;
 use anoma_apps::wallet::Wallet;
 use anoma_apps::wasm_loader;
@@ -23,7 +25,6 @@ use ibc::core::ics02_client::client_consensus::{AnyConsensusState, AnyConsensusS
 use ibc::core::ics02_client::client_state::{
     AnyClientState, ClientState as Ics02ClientState, IdentifiedAnyClientState,
 };
-use ibc::core::ics02_client::error::Error as ClientError;
 use ibc::core::ics03_connection::connection::{ConnectionEnd, IdentifiedConnectionEnd};
 use ibc::core::ics04_channel::channel::{ChannelEnd, IdentifiedChannelEnd};
 use ibc::core::ics04_channel::packet::{PacketMsgType, Sequence};
@@ -32,7 +33,7 @@ use ibc::core::ics23_commitment::merkle::convert_tm_to_ics_merkle_proof;
 use ibc::core::ics24_host::identifier::{
     ChainId, ChannelId, ClientId, ConnectionId, PortChannelId, PortId,
 };
-use ibc::events::IbcEvent;
+use ibc::events::{from_tx_response_event, IbcEvent};
 use ibc::query::QueryBlockRequest;
 use ibc::query::{QueryTxHash, QueryTxRequest};
 use ibc::signer::Signer;
@@ -49,7 +50,9 @@ use ibc_proto::ibc::core::connection::v1::{
     QueryClientConnectionsRequest, QueryConnectionsRequest,
 };
 use prost_types::Any;
+use tendermint::abci::transaction::Hash;
 use tendermint::abci::Code;
+use tendermint::block::Height;
 use tendermint_light_client::types::LightBlock as TMLightBlock;
 use tendermint_proto::Protobuf;
 use tendermint_rpc::query::{EventType, Query};
@@ -73,14 +76,14 @@ use super::{ChainEndpoint, HealthCheck};
 
 const BASE_WALLET_DIR: &str = "anoma_wallet";
 const WASM_DIR: &str = "anoma_wasm";
-const WASM_FILE: &str = "ibc.wasm";
+const WASM_FILE: &str = "tx_ibc.wasm";
+const FEE_TOKEN: &str = "XAN";
 const DEFAULT_MAX_GAS: u64 = 100_000;
 
 pub struct AnomaChain {
     config: ChainConfig,
     rpc_client: HttpClient,
     rt: Arc<TokioRuntime>,
-    secret_key: SecretKey,
     keybase: KeyRing,
 }
 
@@ -91,7 +94,21 @@ impl AnomaChain {
         prost::Message::encode(proto_msg, &mut tx_data)
             .map_err(|e| Error::protobuf_encode(String::from("Message"), e))?;
         let tx = Tx::new(tx_code, Some(tx_data));
-        let signed_tx = tx.sign(&self.secret_key);
+
+        // TODO set the wallet to self
+        // TODO when no account is initialized
+        let wallet_path = Path::new(BASE_WALLET_DIR).join(self.config.id.to_string());
+        let mut wallet = Wallet::load_or_new(&wallet_path);
+
+        // TODO key for this relayer
+        let secret_key = wallet.find_key("albert-key").map_err(Error::anoma_wallet)?;
+        let signed_tx = tx.sign(&secret_key);
+        let tx_hash = signed_tx.hash();
+
+        let fee_token_addr = wallet
+            .find_address(FEE_TOKEN)
+            .ok_or_else(|| Error::anoma_address(FEE_TOKEN.to_string()))?
+            .clone();
 
         // TODO estimate the gas cost?
 
@@ -101,24 +118,27 @@ impl AnomaChain {
         let wrapper_tx = WrapperTx::new(
             Fee {
                 amount: Amount::from(0),
-                token: Address::from_str("XAN").unwrap(),
+                token: fee_token_addr,
             },
-            &self.secret_key,
+            &secret_key,
             epoch,
             gas_limit,
             signed_tx,
             Default::default(),
         );
 
-        // TODO ABCI++
         let tx = wrapper_tx
-            .sign(&self.secret_key)
+            .sign(&secret_key)
             .expect("Signing of the wrapper transaction should not fail");
         let tx_bytes = tx.to_bytes();
 
-        self.rt
+        let mut response = self
+            .rt
             .block_on(self.rpc_client.broadcast_tx_sync(tx_bytes.into()))
-            .map_err(|e| Error::rpc(self.config.rpc_addr.clone(), e))
+            .map_err(|e| Error::rpc(self.config.rpc_addr.clone(), e))?;
+        // overwrite the tx hash in the response
+        response.hash = Hash::new(tx_hash);
+        Ok(response)
     }
 
     fn wait_for_block_commits(
@@ -176,14 +196,23 @@ impl AnomaChain {
         }
     }
 
-    fn query(&self, key: Key, prove: bool) -> Result<(Vec<u8>, Option<MerkleProof>), Error> {
+    fn query(
+        &self,
+        key: Key,
+        height: Option<ICSHeight>,
+        prove: bool,
+    ) -> Result<(Vec<u8>, Option<MerkleProof>), Error> {
         let path = AnomaPath::Value(key);
+        let height = match height {
+            Some(h) => Some(Height::try_from(h.revision_height).map_err(Error::invalid_height)?),
+            None => None,
+        };
         let data = vec![];
         let response = self
             .rt
             .block_on(
                 self.rpc_client
-                    .abci_query(Some(path.into()), data, None, prove),
+                    .abci_query(Some(path.into()), data, height, prove),
             )
             .map_err(|e| Error::rpc(self.config.rpc_addr.clone(), e))?;
         let value = match response.code {
@@ -215,7 +244,8 @@ impl AnomaChain {
             Code::Ok => {
                 Vec::<PrefixValue>::try_from_slice(&response.value[..]).map_err(Error::borsh_decode)
             }
-            Code::Err(_) => Err(Error::abci_query(response)),
+            Code::Err(c) if c == 1 => Ok(vec![]),
+            _ => Err(Error::abci_query(response)),
         }
     }
 
@@ -247,24 +277,21 @@ impl ChainEndpoint for AnomaChain {
         let rpc_client = HttpClient::new(config.rpc_addr.clone())
             .map_err(|e| Error::rpc(config.rpc_addr.clone(), e))?;
 
-        // Load the wallet
-        // TODO when no account is initialized
-        let wallet_path = Path::new(BASE_WALLET_DIR).join(config.id.to_string());
-        let mut wallet = Wallet::load_or_new(&wallet_path);
-        let key = wallet
-            .find_key(config.key_name.clone())
-            .map_err(Error::anoma_wallet)?;
-        let secret_key = std::rc::Rc::<SecretKey>::try_unwrap(key).unwrap();
-
         // not used in Anoma, but the trait requires KeyRing
         let keybase = KeyRing::new(config.key_store_type, &config.account_prefix, &config.id)
             .map_err(Error::key_base)?;
+
+        // overwrite the proof spec
+        // TODO: query the proof spec
+        let config = ChainConfig {
+            proof_specs: MerkleTree::<Sha256Hasher>::default().proof_specs().into(),
+            ..config
+        };
 
         Ok(Self {
             config,
             rpc_client,
             rt,
-            secret_key,
             keybase,
         })
     }
@@ -306,7 +333,6 @@ impl ChainEndpoint for AnomaChain {
     }
 
     fn shutdown(self) -> Result<(), Error> {
-        // TODO shutdown
         Ok(())
     }
 
@@ -396,7 +422,14 @@ impl ChainEndpoint for AnomaChain {
     }
 
     fn get_signer(&mut self) -> Result<Signer, Error> {
-        Ok(Signer::new(self.config.key_name.clone()))
+        // TODO set the wallet to self
+        let wallet_path = Path::new(BASE_WALLET_DIR).join(self.config.id.to_string());
+        let wallet = Wallet::load_or_new(&wallet_path);
+        let address = wallet
+            .find_address(&self.config.key_name)
+            .ok_or_else(|| Error::anoma_address(self.config.key_name.clone()))?;
+
+        Ok(Signer::new(address))
     }
 
     fn config(&self) -> ChainConfig {
@@ -423,8 +456,7 @@ impl ChainEndpoint for AnomaChain {
     }
 
     fn query_commitment_prefix(&self) -> Result<CommitmentPrefix, Error> {
-        CommitmentPrefix::try_from(self.config().store_prefix.as_bytes().to_vec())
-            .map_err(|_| Error::ics02(ClientError::empty_prefix()))
+        Ok(commitment_prefix())
     }
 
     fn query_status(&self) -> Result<StatusResponse, Error> {
@@ -475,10 +507,10 @@ impl ChainEndpoint for AnomaChain {
     fn query_client_state(
         &self,
         client_id: &ClientId,
-        _height: ICSHeight,
+        height: ICSHeight,
     ) -> Result<AnyClientState, Error> {
         let key = storage::client_state_key(client_id);
-        let (value, _) = self.query(key, false)?;
+        let (value, _) = self.query(key, Some(height), false)?;
         AnyClientState::decode_vec(&value).map_err(Error::decode)
     }
 
@@ -506,10 +538,10 @@ impl ChainEndpoint for AnomaChain {
         &self,
         client_id: ClientId,
         consensus_height: ICSHeight,
-        _query_height: ICSHeight,
+        query_height: ICSHeight,
     ) -> Result<AnyConsensusState, Error> {
         let key = storage::consensus_state_key(&client_id, consensus_height);
-        let (value, _) = self.query(key, false)?;
+        let (value, _) = self.query(key, Some(query_height), false)?;
         AnyConsensusState::decode_vec(&value).map_err(Error::decode)
     }
 
@@ -535,7 +567,10 @@ impl ChainEndpoint for AnomaChain {
         let mut connections = vec![];
         for prefix_value in self.query_prefix(prefix)? {
             let PrefixValue { key, value } = prefix_value;
-            // "connections/counter" should be skipped because the decoding fails
+            // "connections/counter" should be skipped
+            if key == storage::connection_counter_key() {
+                continue;
+            }
             let connection_id =
                 storage::connection_id(&key).map_err(|e| Error::query(e.to_string()))?;
             let connection = ConnectionEnd::decode_vec(&value).map_err(Error::decode)?;
@@ -547,19 +582,29 @@ impl ChainEndpoint for AnomaChain {
 
     fn query_client_connections(
         &self,
-        _request: QueryClientConnectionsRequest,
+        request: QueryClientConnectionsRequest,
     ) -> Result<Vec<ConnectionId>, Error> {
+        let client_id =
+            ClientId::from_str(&request.client_id).map_err(|e| Error::query(e.to_string()))?;
         // TODO needs to store connection IDs for each client in Anoma
-        todo!()
+        // workaround by getting all connections
+        let request = QueryConnectionsRequest { pagination: None };
+        let connections = self.query_connections(request)?;
+        let ids = connections
+            .iter()
+            .filter(|c| *c.connection_end.client_id() == client_id)
+            .map(|c| c.connection_id.clone())
+            .collect();
+        Ok(ids)
     }
 
     fn query_connection(
         &self,
         connection_id: &ConnectionId,
-        _height: ICSHeight,
+        height: ICSHeight,
     ) -> Result<ConnectionEnd, Error> {
         let key = storage::connection_key(connection_id);
-        let (value, _) = self.query(key, false)?;
+        let (value, _) = self.query(key, Some(height), false)?;
         ConnectionEnd::decode_vec(&value).map_err(Error::decode)
     }
 
@@ -588,6 +633,10 @@ impl ChainEndpoint for AnomaChain {
         let mut channels = vec![];
         for prefix_value in self.query_prefix(prefix)? {
             let PrefixValue { key, value } = prefix_value;
+            // "channelEnds/counter" should be skipped
+            if key == storage::channel_counter_key() {
+                continue;
+            }
             let port_channel_id =
                 storage::port_channel_id(&key).map_err(|e| Error::query(e.to_string()))?;
             let channel = ChannelEnd::decode_vec(&value).map_err(Error::decode)?;
@@ -605,14 +654,14 @@ impl ChainEndpoint for AnomaChain {
         &self,
         port_id: &PortId,
         channel_id: &ChannelId,
-        _height: ICSHeight,
+        height: ICSHeight,
     ) -> Result<ChannelEnd, Error> {
         let port_channel_id = PortChannelId {
             port_id: port_id.clone(),
             channel_id: channel_id.clone(),
         };
         let key = storage::channel_key(&port_channel_id);
-        let (value, _) = self.query(key, false)?;
+        let (value, _) = self.query(key, Some(height), false)?;
         ChannelEnd::decode_vec(&value).map_err(Error::decode)
     }
 
@@ -759,7 +808,7 @@ impl ChainEndpoint for AnomaChain {
             channel_id,
         };
         let key = storage::next_sequence_recv_key(&port_channel_id);
-        let (value, _) = self.query(key, false)?;
+        let (value, _) = self.query(key, None, false)?;
 
         // As ibc-go, the sequence index is encoded with big-endian
         let index: [u8; 8] = value
@@ -771,7 +820,6 @@ impl ChainEndpoint for AnomaChain {
     }
 
     fn query_txs(&self, request: QueryTxRequest) -> Result<Vec<IbcEvent>, Error> {
-        // TODO same as cosmos.rs
         match request {
             QueryTxRequest::Packet(request) => {
                 let mut result: Vec<IbcEvent> = vec![];
@@ -839,26 +887,39 @@ impl ChainEndpoint for AnomaChain {
             }
 
             QueryTxRequest::Transaction(tx) => {
-                let mut response = self
+                let tx_query = TxEventQuery::Applied(tx.0.to_string());
+                let blocks = &self
                     .rt
-                    .block_on(self.rpc_client.tx_search(
-                        cosmos::tx_hash_query(&tx),
-                        false,
+                    .block_on(self.rpc_client.block_search(
+                        Query::from(tx_query.clone()),
                         1,
-                        1, // get only the first Tx matching the query
+                        255,
                         Order::Ascending,
                     ))
+                    .map_err(|e| Error::rpc(self.config.rpc_addr.clone(), e))?
+                    .blocks;
+                let block = &blocks
+                    .get(0)
+                    .ok_or_else(|| Error::query("No block was found".to_string()))?
+                    .block;
+                let response = self
+                    .rt
+                    .block_on(self.rpc_client.block_results(block.header.height))
                     .map_err(|e| Error::rpc(self.config.rpc_addr.clone(), e))?;
 
-                if response.txs.is_empty() {
-                    Ok(vec![])
-                } else {
-                    let tx = response.txs.remove(0);
-                    Ok(cosmos::all_ibc_events_from_tx_search_response(
-                        self.id(),
-                        tx,
-                    ))
+                let events = response
+                    .end_block_events
+                    .ok_or_else(|| Error::query("No transaction result was found".to_string()))?;
+                let mut ibc_events = vec![];
+                for event in &events {
+                    let height = ICSHeight::new(self.id().version(), u64::from(response.height));
+                    match from_tx_response_event(height, event) {
+                        Some(e) => ibc_events.push(e),
+                        None => continue,
+                    }
                 }
+                tracing::debug!("events: {:?}", events);
+                Ok(ibc_events)
             }
         }
     }
@@ -931,10 +992,10 @@ impl ChainEndpoint for AnomaChain {
     fn proven_client_state(
         &self,
         client_id: &ClientId,
-        _height: ICSHeight,
+        height: ICSHeight,
     ) -> Result<(AnyClientState, MerkleProof), Error> {
         let key = storage::client_state_key(client_id);
-        let (value, proof) = self.query(key, true)?;
+        let (value, proof) = self.query(key, Some(height), true)?;
         let client_state = AnyClientState::decode_vec(&value).map_err(Error::decode)?;
 
         Ok((client_state, proof.ok_or_else(Error::empty_response_proof)?))
@@ -943,10 +1004,10 @@ impl ChainEndpoint for AnomaChain {
     fn proven_connection(
         &self,
         connection_id: &ConnectionId,
-        _height: ICSHeight,
+        height: ICSHeight,
     ) -> Result<(ConnectionEnd, MerkleProof), Error> {
         let key = storage::connection_key(connection_id);
-        let (value, proof) = self.query(key, true)?;
+        let (value, proof) = self.query(key, Some(height), true)?;
         let connection_end = ConnectionEnd::decode_vec(&value).map_err(Error::decode)?;
 
         Ok((
@@ -959,10 +1020,10 @@ impl ChainEndpoint for AnomaChain {
         &self,
         client_id: &ClientId,
         consensus_height: ICSHeight,
-        _height: ICSHeight,
+        height: ICSHeight,
     ) -> Result<(AnyConsensusState, MerkleProof), Error> {
         let key = storage::consensus_state_key(client_id, consensus_height);
-        let (value, proof) = self.query(key, true)?;
+        let (value, proof) = self.query(key, Some(height), true)?;
         let consensus_state = AnyConsensusState::decode_vec(&value).map_err(Error::decode)?;
 
         Ok((
@@ -975,14 +1036,14 @@ impl ChainEndpoint for AnomaChain {
         &self,
         port_id: &PortId,
         channel_id: &ChannelId,
-        _height: ICSHeight,
+        height: ICSHeight,
     ) -> Result<(ChannelEnd, MerkleProof), Error> {
         let port_channel_id = PortChannelId {
             port_id: port_id.clone(),
             channel_id: channel_id.clone(),
         };
         let key = storage::channel_key(&port_channel_id);
-        let (value, proof) = self.query(key, false)?;
+        let (value, proof) = self.query(key, Some(height), true)?;
         let channel_end = ChannelEnd::decode_vec(&value).map_err(Error::decode)?;
 
         Ok((channel_end, proof.ok_or_else(Error::empty_response_proof)?))
@@ -994,7 +1055,7 @@ impl ChainEndpoint for AnomaChain {
         port_id: PortId,
         channel_id: ChannelId,
         sequence: Sequence,
-        _height: ICSHeight,
+        height: ICSHeight,
     ) -> Result<(Vec<u8>, MerkleProof), Error> {
         let key = match packet_type {
             PacketMsgType::Recv => storage::commitment_key(&port_id, &channel_id, sequence),
@@ -1010,7 +1071,7 @@ impl ChainEndpoint for AnomaChain {
                 storage::next_sequence_recv_key(&port_channel_id)
             }
         };
-        let (data, proof) = self.query(key, true)?;
+        let (data, proof) = self.query(key, Some(height), true)?;
         Ok((data, proof.ok_or_else(Error::empty_response_proof)?))
     }
 

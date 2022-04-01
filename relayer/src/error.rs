@@ -506,6 +506,10 @@ define_error! {
         AnomaWallet
             [ TraceError<anoma_apps::wallet::FindKeyError> ]
             |_| { "The keypair was not found" },
+
+        AnomaAddress
+            { alias: String }
+            |e| { format!("The address was not found for {}", e.alias) },
     }
 }
 
