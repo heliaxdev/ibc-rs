@@ -2,10 +2,15 @@
 
 use abscissa_core::clap::Parser;
 use abscissa_core::{Command, Runnable};
+use ibc::core::ics24_host::identifier::ChainId;
+use ibc_relayer::chain::handle::ChainHandle;
+use ibc_relayer::registry::Registry;
 
+use crate::application::app_config;
 use crate::commands::query::channel_ends::QueryChannelEndsCmd;
 use crate::commands::query::channels::QueryChannelsCmd;
 use crate::commands::query::packet::QueryPacketCmds;
+use crate::conclude::Output;
 
 mod channel;
 mod channel_ends;
@@ -81,4 +86,17 @@ pub enum QueryChannelCmds {
 
     /// Query channel ends and underlying connection and client objects
     Ends(QueryChannelEndsCmd),
+}
+
+pub fn get_chain_handle<Chain: ChainHandle>(chain_id: &ChainId) -> Chain {
+    let config = app_config();
+    let mut registry = <Registry<Chain>>::from_owned((*config).clone());
+    match registry.get_or_spawn(chain_id) {
+        Ok(chain) => chain,
+        Err(e) => Output::error(format!(
+            "The chain handle for {} couldn't start: {}",
+            chain_id, e
+        ))
+        .exit(),
+    }
 }
