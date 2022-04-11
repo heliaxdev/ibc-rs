@@ -50,6 +50,7 @@ use ibc_proto::ibc::core::connection::v1::{
     QueryClientConnectionsRequest, QueryConnectionsRequest,
 };
 use prost_types::Any;
+use tendermint::abci::tag::Tag;
 use tendermint::abci::transaction::Hash;
 use tendermint::abci::Code;
 use tendermint::block::Height;
@@ -217,6 +218,7 @@ impl AnomaChain {
             .map_err(|e| Error::rpc(self.config.rpc_addr.clone(), e))?;
         let value = match response.code {
             Code::Ok => response.value,
+            Code::Err(1) => vec![],
             Code::Err(_) => return Err(Error::abci_query(response)),
         };
 
@@ -263,6 +265,46 @@ impl AnomaChain {
             Code::Ok => Epoch::try_from_slice(&response.value[..]).map_err(Error::borsh_decode),
             Code::Err(_) => Err(Error::abci_query(response)),
         }
+    }
+
+    fn query_events(&self, query: Query) -> Result<Vec<IbcEvent>, Error> {
+        let blocks = &self
+            .rt
+            .block_on(self.rpc_client.block_search(query, 1, 1, Order::Ascending))
+            .map_err(|e| Error::rpc(self.config.rpc_addr.clone(), e))?
+            .blocks;
+        let block = &blocks
+            .get(0)
+            .ok_or_else(|| Error::query("No block was found".to_string()))?
+            .block;
+        let response = self
+            .rt
+            .block_on(self.rpc_client.block_results(block.header.height))
+            .map_err(|e| Error::rpc(self.config.rpc_addr.clone(), e))?;
+
+        let events = response
+            .end_block_events
+            .ok_or_else(|| Error::query("No transaction result was found".to_string()))?;
+        let mut ibc_events = vec![];
+        for event in &events {
+            let height = ICSHeight::new(self.id().version(), u64::from(response.height));
+            match from_tx_response_event(height, event) {
+                Some(e) => ibc_events.push(e),
+                None => {
+                    let success_code_tag = Tag {
+                        key: "code".parse().expect("The tag parsing shouldn't fail"),
+                        value: "0".parse().expect("The tag parsing shouldn't fail"),
+                    };
+                    if !event.attributes.contains(&success_code_tag) {
+                        ibc_events.push(IbcEvent::ChainError(format!(
+                            "The transaction was invalid: event {:?}",
+                            event
+                        )));
+                    }
+                }
+            }
+        }
+        Ok(ibc_events)
     }
 }
 
@@ -396,13 +438,19 @@ impl ChainEndpoint for AnomaChain {
 
         let tx_sync_results = self.wait_for_block_commits(tx_sync_results)?;
 
-        let events = tx_sync_results
+        let events: Vec<IbcEvent> = tx_sync_results
             .into_iter()
             .map(|el| el.events)
             .flatten()
             .collect();
+        let mut dedup_events = vec![];
+        for event in events {
+            if !dedup_events.contains(&event) {
+                dedup_events.push(event);
+            }
+        }
 
-        Ok(events)
+        Ok(dedup_events)
     }
 
     fn send_messages_and_wait_check_tx(
@@ -522,8 +570,11 @@ impl ChainEndpoint for AnomaChain {
         let mut states = vec![];
         for prefix_value in self.query_prefix(prefix)? {
             let PrefixValue { key, value } = prefix_value;
-            let height =
-                storage::consensus_height(&key).map_err(|e| Error::query(e.to_string()))?;
+            let height = match storage::consensus_height(&key) {
+                Ok(h) => h,
+                // the key is not for a consensus state
+                Err(_) => continue,
+            };
             let consensus_state = AnyConsensusState::decode_vec(&value).map_err(Error::decode)?;
             states.push(AnyConsensusStateWithHeight {
                 height,
@@ -755,12 +806,15 @@ impl ChainEndpoint for AnomaChain {
             let PrefixValue { key, value } = prefix_value;
             let (port_id, channel_id, sequence) =
                 storage::port_channel_sequence_id(&key).map_err(|e| Error::query(e.to_string()))?;
-            states.push(PacketState {
-                port_id: port_id.to_string(),
-                channel_id: channel_id.to_string(),
-                sequence: sequence.into(),
-                data: value,
-            });
+            let seq = u64::from(sequence);
+            if request.packet_commitment_sequences.contains(&seq) {
+                states.push(PacketState {
+                    port_id: port_id.to_string(),
+                    channel_id: channel_id.to_string(),
+                    sequence: sequence.into(),
+                    data: value,
+                });
+            }
         }
 
         // TODO the height might be mismatched with the previous query
@@ -774,23 +828,20 @@ impl ChainEndpoint for AnomaChain {
         request: QueryUnreceivedAcksRequest,
     ) -> Result<Vec<u64>, Error> {
         let path = format!(
-            "acks/ports/{}/channels/{}/sequences",
+            "commitments/ports/{}/channels/{}/sequences",
             request.port_id, request.channel_id
         );
         let prefix = ibc_key(path)?;
-        let mut received_seqs = vec![];
+        let mut unreceived_seqs = vec![];
         for prefix_value in self.query_prefix(prefix)? {
             let PrefixValue { key, value: _ } = prefix_value;
             let (_, _, sequence) =
                 storage::port_channel_sequence_id(&key).map_err(|e| Error::query(e.to_string()))?;
-            received_seqs.push(u64::from(sequence));
+            let seq = u64::from(sequence);
+            if request.packet_ack_sequences.contains(&seq) {
+                unreceived_seqs.push(seq);
+            }
         }
-
-        let unreceived_seqs = request
-            .packet_ack_sequences
-            .into_iter()
-            .filter(|seq| !received_seqs.contains(seq))
-            .collect();
 
         Ok(unreceived_seqs)
     }
@@ -825,33 +876,15 @@ impl ChainEndpoint for AnomaChain {
                 let mut result: Vec<IbcEvent> = vec![];
                 for seq in &request.sequences {
                     // query first (and only) Tx that includes the event specified in the query request
-                    let response = self
-                        .rt
-                        .block_on(self.rpc_client.tx_search(
-                            cosmos::packet_query(&request, *seq),
-                            false,
-                            1,
-                            1, // get only the first Tx matching the query
-                            Order::Ascending,
-                        ))
-                        .map_err(|e| Error::rpc(self.config.rpc_addr.clone(), e))?;
-
-                    assert!(
-                        response.txs.len() <= 1,
-                        "packet_from_tx_search_response: unexpected number of txs"
-                    );
-
-                    if response.txs.is_empty() {
-                        continue;
-                    }
-
-                    if let Some(event) = cosmos::packet_from_tx_search_response(
-                        self.id(),
-                        &request,
-                        *seq,
-                        response.txs[0].clone(),
-                    ) {
-                        result.push(event);
+                    let events = self.query_events(cosmos::packet_query(&request, *seq))?;
+                    let events: Vec<IbcEvent> = events
+                        .into_iter()
+                        .filter(|e| e.event_type().as_str() == request.event_id.as_str())
+                        .collect();
+                    for event in events {
+                        if !result.contains(&event) {
+                            result.push(event);
+                        }
                     }
                 }
                 Ok(result)
@@ -888,38 +921,8 @@ impl ChainEndpoint for AnomaChain {
 
             QueryTxRequest::Transaction(tx) => {
                 let tx_query = TxEventQuery::Applied(tx.0.to_string());
-                let blocks = &self
-                    .rt
-                    .block_on(self.rpc_client.block_search(
-                        Query::from(tx_query.clone()),
-                        1,
-                        255,
-                        Order::Ascending,
-                    ))
-                    .map_err(|e| Error::rpc(self.config.rpc_addr.clone(), e))?
-                    .blocks;
-                let block = &blocks
-                    .get(0)
-                    .ok_or_else(|| Error::query("No block was found".to_string()))?
-                    .block;
-                let response = self
-                    .rt
-                    .block_on(self.rpc_client.block_results(block.header.height))
-                    .map_err(|e| Error::rpc(self.config.rpc_addr.clone(), e))?;
-
-                let events = response
-                    .end_block_events
-                    .ok_or_else(|| Error::query("No transaction result was found".to_string()))?;
-                let mut ibc_events = vec![];
-                for event in &events {
-                    let height = ICSHeight::new(self.id().version(), u64::from(response.height));
-                    match from_tx_response_event(height, event) {
-                        Some(e) => ibc_events.push(e),
-                        None => continue,
-                    }
-                }
-                tracing::debug!("events: {:?}", events);
-                Ok(ibc_events)
+                let events = self.query_events(Query::from(tx_query.clone()))?;
+                Ok(events)
             }
         }
     }
