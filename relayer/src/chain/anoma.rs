@@ -1086,7 +1086,7 @@ impl ChainEndpoint for AnomaChain {
         // TODO trusted_period, unbonding_period and max_clock_drift
         let unbonding_period = Duration::new(1814400, 0);
         let trusting_period = 2 * unbonding_period / 3;
-        let max_clock_drift = Duration::new(0, 0);
+        let max_clock_drift = Duration::new(10, 0);
         // TODO confirm parameters for Anoma
         ClientState::new(
             self.id().clone(),
