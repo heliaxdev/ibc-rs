@@ -41,7 +41,7 @@ futures = "0.3.21"
 crossbeam-channel = "0.5.4"
 k256 = { version = "0.10.4", features = ["ecdsa-core", "ecdsa", "sha256"]}
 hex = "0.4"
-bitcoin = { version = "=0.27", features = ["use-serde"] }
+bitcoin = { version = "=0.28.0", features = ["use-serde"] }
 tiny-bip39 = "0.8.0"
 hdpath = { version = "0.6.0" }
 sha2 = "0.10.2"
@@ -74,28 +74,28 @@ features = ["num-bigint", "serde"]
 
 [dependencies.tendermint]
 git = "https://github.com/heliaxdev/tendermint-rs"
-branch = "bat/abcipp-16.03.2022"
+branch = "bat/abcipp-rebase-master"
 features = ["secp256k1"]
 
 [dependencies.tendermint-rpc]
 git = "https://github.com/heliaxdev/tendermint-rs"
-branch = "bat/abcipp-16.03.2022"
+branch = "bat/abcipp-rebase-master"
 features = ["http-client", "websocket-client"]
 
 [dependencies.tendermint-light-client]
 git = "https://github.com/heliaxdev/tendermint-rs"
-branch = "bat/abcipp-16.03.2022"
+branch = "bat/abcipp-rebase-master"
 default-features = false
 features = ["rpc-client", "secp256k1", "unstable"]
 
 [dependencies.tendermint-light-client-verifier]
 git = "https://github.com/heliaxdev/tendermint-rs"
-branch = "bat/abcipp-16.03.2022"
+branch = "bat/abcipp-rebase-master"
 default-features = false
 
 [dependencies.tendermint-proto]
 git = "https://github.com/heliaxdev/tendermint-rs"
-branch = "bat/abcipp-16.03.2022"
+branch = "bat/abcipp-rebase-master"
 
 [dev-dependencies]
 ibc = { version = "0.14.0", path = "../modules", features = ["mocks"] }
@@ -105,4 +105,4 @@ tracing-subscriber = { version = "0.3.11", features = ["fmt", "env-filter", "jso
 test-log = { version = "0.2.10", features = ["trace"] }
 
 # Needed for generating (synthetic) light blocks.
-tendermint-testgen = { git = "https://github.com/heliaxdev/tendermint-rs", branch = "bat/abcipp-16.03.2022" }
+tendermint-testgen = { git = "https://github.com/heliaxdev/tendermint-rs", branch = "bat/abcipp-rebase-master" }

@@ -219,9 +219,9 @@ checksum = "cf9ff0bbfd639f15c74af777d81383cf53efb7c93613f6cab67c6c11e05bbf8b"
 
 [[package]]
 name = "bitcoin"
-version = "0.27.1"
+version = "0.28.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9a41df6ad9642c5c15ae312dd3d074de38fd3eb7cc87ad4ce10f90292a83fe4d"
+checksum = "42b2a9a8e3c7544f5ce2b475f2f56580a3102b37e0ee001558ad4faedcf56cf4"
 dependencies = [
  "bech32",
  "bitcoin_hashes",
@@ -1096,10 +1096,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9be70c98951c83b8d2f8f60d7065fa6d5146873094452a1008da8c2f1e4205ad"
 dependencies = [
  "cfg-if 1.0.0",
- "js-sys",
  "libc",
  "wasi 0.10.2+wasi-snapshot-preview1",
- "wasm-bindgen",
 ]
 
 [[package]]
@@ -2818,9 +2816,9 @@ dependencies = [
 
 [[package]]
 name = "secp256k1"
-version = "0.20.3"
+version = "0.22.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "97d03ceae636d0fed5bae6a7f4f664354c5f4fcedf6eef053fef17e49f837d0a"
+checksum = "26947345339603ae8395f68e2f3d85a6b0a8ddfe6315818e80b8504415099db0"
 dependencies = [
  "secp256k1-sys",
  "serde",
@@ -2828,9 +2826,9 @@ dependencies = [
 
 [[package]]
 name = "secp256k1-sys"
-version = "0.4.2"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "957da2573cde917463ece3570eab4a0b3f19de6f1646cde62e6fd3868f566036"
+checksum = "07b5b9d7322572e1f3aeed208668ce87789b3645dbb73082c5ce99a004103a35"
 dependencies = [
  "cc",
 ]
@@ -3236,7 +3234,7 @@ dependencies = [
 [[package]]
 name = "tendermint"
 version = "0.23.5"
-source = "git+https://github.com/heliaxdev/tendermint-rs?branch=bat/abcipp-16.03.2022#2885a565a23f6e4dff37bb8fff1eef47dd5176f7"
+source = "git+https://github.com/heliaxdev/tendermint-rs?branch=bat/abcipp-rebase-master#3fa4f08def72acfde7f213515ca28fe5f16eac2f"
 dependencies = [
  "async-trait",
  "bytes",
@@ -3266,7 +3264,7 @@ dependencies = [
 [[package]]
 name = "tendermint-config"
 version = "0.23.5"
-source = "git+https://github.com/heliaxdev/tendermint-rs?branch=bat/abcipp-16.03.2022#2885a565a23f6e4dff37bb8fff1eef47dd5176f7"
+source = "git+https://github.com/heliaxdev/tendermint-rs?branch=bat/abcipp-rebase-master#3fa4f08def72acfde7f213515ca28fe5f16eac2f"
 dependencies = [
  "flex-error",
  "serde",
@@ -3279,7 +3277,7 @@ dependencies = [
 [[package]]
 name = "tendermint-light-client"
 version = "0.23.5"
-source = "git+https://github.com/heliaxdev/tendermint-rs?branch=bat/abcipp-16.03.2022#2885a565a23f6e4dff37bb8fff1eef47dd5176f7"
+source = "git+https://github.com/heliaxdev/tendermint-rs?branch=bat/abcipp-rebase-master#3fa4f08def72acfde7f213515ca28fe5f16eac2f"
 dependencies = [
  "contracts",
  "crossbeam-channel 0.4.4",
@@ -3300,7 +3298,7 @@ dependencies = [
 [[package]]
 name = "tendermint-light-client-verifier"
 version = "0.23.5"
-source = "git+https://github.com/heliaxdev/tendermint-rs?branch=bat/abcipp-16.03.2022#2885a565a23f6e4dff37bb8fff1eef47dd5176f7"
+source = "git+https://github.com/heliaxdev/tendermint-rs?branch=bat/abcipp-rebase-master#3fa4f08def72acfde7f213515ca28fe5f16eac2f"
 dependencies = [
  "derive_more",
  "flex-error",
@@ -3313,7 +3311,7 @@ dependencies = [
 [[package]]
 name = "tendermint-proto"
 version = "0.23.5"
-source = "git+https://github.com/heliaxdev/tendermint-rs?branch=bat/abcipp-16.03.2022#2885a565a23f6e4dff37bb8fff1eef47dd5176f7"
+source = "git+https://github.com/heliaxdev/tendermint-rs?branch=bat/abcipp-rebase-master#3fa4f08def72acfde7f213515ca28fe5f16eac2f"
 dependencies = [
  "bytes",
  "flex-error",
@@ -3330,7 +3328,7 @@ dependencies = [
 [[package]]
 name = "tendermint-rpc"
 version = "0.23.5"
-source = "git+https://github.com/heliaxdev/tendermint-rs?branch=bat/abcipp-16.03.2022#2885a565a23f6e4dff37bb8fff1eef47dd5176f7"
+source = "git+https://github.com/heliaxdev/tendermint-rs?branch=bat/abcipp-rebase-master#3fa4f08def72acfde7f213515ca28fe5f16eac2f"
 dependencies = [
  "async-trait",
  "async-tungstenite",
@@ -3363,7 +3361,7 @@ dependencies = [
 [[package]]
 name = "tendermint-testgen"
 version = "0.23.5"
-source = "git+https://github.com/heliaxdev/tendermint-rs?branch=bat/abcipp-16.03.2022#2885a565a23f6e4dff37bb8fff1eef47dd5176f7"
+source = "git+https://github.com/heliaxdev/tendermint-rs?branch=bat/abcipp-rebase-master#3fa4f08def72acfde7f213515ca28fe5f16eac2f"
 dependencies = [
  "ed25519-dalek",
  "gumdrop",

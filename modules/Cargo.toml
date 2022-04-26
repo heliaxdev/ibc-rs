@@ -46,22 +46,22 @@ derive_more = { version = "0.99.17", default-features = false, features = ["from
 
 [dependencies.tendermint]
 git = "https://github.com/heliaxdev/tendermint-rs"
-branch = "bat/abcipp-16.03.2022"
+branch = "bat/abcipp-rebase-master"
 default-features = false
 
 [dependencies.tendermint-proto]
 git = "https://github.com/heliaxdev/tendermint-rs"
-branch = "bat/abcipp-16.03.2022"
+branch = "bat/abcipp-rebase-master"
 default-features = false
 
 [dependencies.tendermint-light-client-verifier]
 git = "https://github.com/heliaxdev/tendermint-rs"
-branch = "bat/abcipp-16.03.2022"
+branch = "bat/abcipp-rebase-master"
 default-features = false
 
 [dependencies.tendermint-testgen]
 git = "https://github.com/heliaxdev/tendermint-rs"
-branch = "bat/abcipp-16.03.2022"
+branch = "bat/abcipp-rebase-master"
 optional = true
 default-features = false
 
@@ -71,8 +71,8 @@ tracing-subscriber = { version = "0.3.11", features = ["fmt", "env-filter", "jso
 test-log = { version = "0.2.10", features = ["trace"] }
 modelator = "0.4.2"
 sha2 = { version = "0.10.2" }
-tendermint-rpc = { git = "https://github.com/heliaxdev/tendermint-rs", branch = "bat/abcipp-16.03.2022", features = ["http-client", "websocket-client"] }
-tendermint-testgen = { git = "https://github.com/heliaxdev/tendermint-rs", branch = "bat/abcipp-16.03.2022" } # Needed for generating (synthetic) light blocks.
+tendermint-rpc = { git = "https://github.com/heliaxdev/tendermint-rs", branch = "bat/abcipp-rebase-master", features = ["http-client", "websocket-client"] }
+tendermint-testgen = { git = "https://github.com/heliaxdev/tendermint-rs", branch = "bat/abcipp-rebase-master" } # Needed for generating (synthetic) light blocks.
 
 [[test]]
 name = "mbt"
