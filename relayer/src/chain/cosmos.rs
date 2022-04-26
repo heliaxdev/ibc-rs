@@ -702,7 +702,7 @@ impl CosmosSdkChain {
 
     fn key_bytes(&self, key: &KeyEntry) -> Result<Vec<u8>, Error> {
         let mut pk_buf = Vec::new();
-        prost::Message::encode(&key.public_key.public_key.to_bytes(), &mut pk_buf)
+        prost::Message::encode(&key.public_key.to_pub().to_bytes(), &mut pk_buf)
             .map_err(|e| Error::protobuf_encode(String::from("Key bytes"), e))?;
         Ok(pk_buf)
     }
