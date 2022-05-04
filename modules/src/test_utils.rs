@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 use crate::prelude::*;
-use tendermint::{block, consensus, evidence, public_key::Algorithm};
+use tendermint::{block, consensus, duration::Duration, evidence, public_key::Algorithm};
 
 use crate::signer::Signer;
 use tendermint::consensus::params::{TimeoutParams, SynchronyParams};
@@ -15,7 +15,7 @@ pub fn default_consensus_params() -> consensus::Params {
         },
         evidence: evidence::Params {
             max_age_num_blocks: 100000,
-            max_age_duration: evidence::Duration(core::time::Duration::new(48 * 3600, 0)),
+            max_age_duration: Duration::new(48 * 3600, 0),
             max_bytes: 0,
         },
         validator: consensus::params::ValidatorParams {
@@ -23,15 +23,15 @@ pub fn default_consensus_params() -> consensus::Params {
         },
         version: Some(consensus::params::VersionParams::default()),
         synchrony: SynchronyParams {
-            message_delay: core::time::Duration::from_millis(505),
-            precision: core::time::Duration::from_secs(12),
+            message_delay: Duration::from_millis(505),
+            precision: Duration::from_secs(12),
         },
         timeout: TimeoutParams {
-            propose: core::time::Duration::from_millis(3000),
-            propose_delta: core::time::Duration::from_millis(500),
-            vote: core::time::Duration::from_millis(1000),
-            vote_delta: core::time::Duration::from_millis(500),
-            commit: core::time::Duration::from_millis(1000),
+            propose: Duration::from_millis(3000),
+            propose_delta: Duration::from_millis(500),
+            vote: Duration::from_millis(1000),
+            vote_delta: Duration::from_millis(500),
+            commit: Duration::from_millis(1000),
             bypass_commit_timeout: false,
         },
     }
