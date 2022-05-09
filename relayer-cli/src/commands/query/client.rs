@@ -11,7 +11,7 @@ use ibc::query::QueryTxRequest;
 use ibc::Height;
 use ibc_proto::ibc::core::client::v1::QueryConsensusStatesRequest;
 use ibc_proto::ibc::core::connection::v1::QueryClientConnectionsRequest;
-use ibc_relayer::chain::handle::{ChainHandle, ProdChainHandle};
+use ibc_relayer::chain::handle::{ChainHandle, BaseChainHandle};
 
 use crate::conclude::Output;
 
@@ -32,7 +32,7 @@ pub struct QueryClientStateCmd {
 /// hermes query client state ibc-1 07-tendermint-0 --height 3
 impl Runnable for QueryClientStateCmd {
     fn run(&self) {
-        let chain = super::get_chain_handle::<ProdChainHandle>(&self.chain_id);
+        let chain = super::get_chain_handle::<BaseChainHandle>(&self.chain_id);
         let height = ibc::Height::new(chain.id().version(), self.height.unwrap_or(0_u64));
 
         match chain.query_client_state(&self.client_id, height) {
@@ -75,7 +75,7 @@ impl Runnable for QueryClientConsensusCmd {
     fn run(&self) {
         debug!("Options: {:?}", self);
 
-        let chain = super::get_chain_handle::<ProdChainHandle>(&self.chain_id);
+        let chain = super::get_chain_handle::<BaseChainHandle>(&self.chain_id);
 
         let counterparty_chain = match chain.query_client_state(&self.client_id, Height::zero()) {
             Ok(cs) => cs.chain_id(),
@@ -142,7 +142,7 @@ impl Runnable for QueryClientHeaderCmd {
     fn run(&self) {
         debug!("Options: {:?}", self);
 
-        let chain = super::get_chain_handle::<ProdChainHandle>(&self.chain_id);
+        let chain = super::get_chain_handle::<BaseChainHandle>(&self.chain_id);
 
         let counterparty_chain = match chain.query_client_state(&self.client_id, Height::zero()) {
             Ok(cs) => cs.chain_id(),
@@ -193,7 +193,7 @@ impl Runnable for QueryClientConnectionsCmd {
     fn run(&self) {
         debug!("Options: {:?}", self);
 
-        let chain = super::get_chain_handle::<ProdChainHandle>(&self.chain_id);
+        let chain = super::get_chain_handle::<BaseChainHandle>(&self.chain_id);
 
         let req = QueryClientConnectionsRequest {
             client_id: self.client_id.to_string(),

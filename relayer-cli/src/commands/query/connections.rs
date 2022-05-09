@@ -3,7 +3,7 @@ use abscissa_core::Runnable;
 
 use ibc::core::ics24_host::identifier::{ChainId, ConnectionId};
 use ibc_proto::ibc::core::connection::v1::QueryConnectionsRequest;
-use ibc_relayer::chain::handle::{ChainHandle, ProdChainHandle};
+use ibc_relayer::chain::handle::{ChainHandle, BaseChainHandle};
 
 use crate::conclude::Output;
 use crate::prelude::*;
@@ -19,7 +19,7 @@ impl Runnable for QueryConnectionsCmd {
     fn run(&self) {
         debug!("Options: {:?}", self);
 
-        let chain = super::get_chain_handle::<ProdChainHandle>(&self.chain_id);
+        let chain = super::get_chain_handle::<BaseChainHandle>(&self.chain_id);
 
         let req = QueryConnectionsRequest {
             pagination: ibc_proto::cosmos::base::query::pagination::all(),

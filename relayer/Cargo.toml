@@ -26,8 +26,8 @@ ibc           = { git = "https://github.com/heliaxdev/ibc-rs", branch = "yuji/v0
 ibc-proto     = { git = "https://github.com/heliaxdev/ibc-rs", branch = "yuji/v0.14.0_tm_v0.23.5" }
 ibc-telemetry = { git = "https://github.com/heliaxdev/ibc-rs", branch = "yuji/v0.14.0_tm_v0.23.5", optional = true }
 
-anoma_apps = { git = "https://github.com/anoma/anoma" }
-anoma = { git = "https://github.com/anoma/anoma", default-features = false, features = ["ABCI", "ibc-mocks-abci"] }
+anoma_apps = { git = "https://github.com/anoma/anoma", branch = "yuji/ibc_test_ibc-rs_v0.14" }
+anoma = { git = "https://github.com/anoma/anoma", branch = "yuji/ibc_test_ibc-rs_v0.14", default-features = false, features = ["ABCI", "ibc-mocks-abci"] }
 
 subtle-encoding = "0.5"
 humantime-serde = "1.1.1"
@@ -77,26 +77,30 @@ features = ["serde"]
 version = "0.4.0"
 features = ["num-bigint", "serde"]
 
-# TODO revert after rebase
 [dependencies.tendermint]
-version = "=0.23.6"
+git = "https://github.com/heliaxdev/tendermint-rs"
+branch = "yuji/rebase_v0.23.5"
 features = ["secp256k1"]
 
 [dependencies.tendermint-rpc]
-version = "=0.23.6"
+git = "https://github.com/heliaxdev/tendermint-rs"
+branch = "yuji/rebase_v0.23.5"
 features = ["http-client", "websocket-client"]
 
 [dependencies.tendermint-light-client]
-version = "=0.23.6"
+git = "https://github.com/heliaxdev/tendermint-rs"
+branch = "yuji/rebase_v0.23.5"
 default-features = false
 features = ["rpc-client", "secp256k1", "unstable"]
 
 [dependencies.tendermint-light-client-verifier]
-version = "=0.23.6"
+git = "https://github.com/heliaxdev/tendermint-rs"
+branch = "yuji/rebase_v0.23.5"
 default-features = false
 
 [dependencies.tendermint-proto]
-version = "=0.23.6"
+git = "https://github.com/heliaxdev/tendermint-rs"
+branch = "yuji/rebase_v0.23.5"
 
 [dev-dependencies]
 # need to use the same tendermint-rs version
@@ -107,4 +111,4 @@ tracing-subscriber = { version = "0.3.11", features = ["fmt", "env-filter", "jso
 test-log = { version = "0.2.10", features = ["trace"] }
 
 # Needed for generating (synthetic) light blocks.
-tendermint-testgen = { version = "=0.23.6" }
+tendermint-testgen = { git = "https://github.com/heliaxdev/tendermint-rs", branch = "yuji/rebase_v0.23.5" }

@@ -5,7 +5,7 @@ use serde::Serialize;
 use ibc::core::ics02_client::client_state::ClientState;
 use ibc::core::ics24_host::identifier::{ChainId, ClientId};
 use ibc_proto::ibc::core::client::v1::QueryClientStatesRequest;
-use ibc_relayer::chain::handle::{ChainHandle, ProdChainHandle};
+use ibc_relayer::chain::handle::{ChainHandle, BaseChainHandle};
 
 use crate::conclude::Output;
 use crate::error::Error;
@@ -41,7 +41,7 @@ impl Runnable for QueryAllClientsCmd {
     fn run(&self) {
         debug!("Options: {:?}", self);
 
-        let chain = super::get_chain_handle::<ProdChainHandle>(&self.chain_id);
+        let chain = super::get_chain_handle::<BaseChainHandle>(&self.chain_id);
 
         let req = QueryClientStatesRequest {
             pagination: ibc_proto::cosmos::base::query::pagination::all(),

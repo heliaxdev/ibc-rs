@@ -90,7 +90,7 @@ pub enum QueryChannelCmds {
 
 pub fn get_chain_handle<Chain: ChainHandle>(chain_id: &ChainId) -> Chain {
     let config = app_config();
-    let mut registry = <Registry<Chain>>::from_owned((*config).clone());
+    let mut registry = <Registry<Chain>>::new((*config).clone());
     match registry.get_or_spawn(chain_id) {
         Ok(chain) => chain,
         Err(e) => Output::error(format!(

@@ -3,6 +3,7 @@ use core::str::FromStr;
 use core::time::Duration;
 use std::path::Path;
 use std::thread;
+use std::time::Instant;
 
 use anoma::ledger::ibc::handler::commitment_prefix;
 use anoma::ledger::ibc::storage;
@@ -38,6 +39,7 @@ use ibc::query::QueryBlockRequest;
 use ibc::query::{QueryTxHash, QueryTxRequest};
 use ibc::signer::Signer;
 use ibc::Height as ICSHeight;
+use ibc_proto::google::protobuf::Any;
 use ibc_proto::ibc::core::channel::v1::{
     PacketState, QueryChannelClientStateRequest, QueryChannelsRequest,
     QueryConnectionChannelsRequest, QueryNextSequenceReceiveRequest,
@@ -49,7 +51,6 @@ use ibc_proto::ibc::core::commitment::v1::MerkleProof;
 use ibc_proto::ibc::core::connection::v1::{
     QueryClientConnectionsRequest, QueryConnectionsRequest,
 };
-use prost_types::Any;
 use tendermint::abci::tag::Tag;
 use tendermint::abci::transaction::Hash;
 use tendermint::abci::Code;
@@ -60,10 +61,11 @@ use tendermint_rpc::query::{EventType, Query};
 use tendermint_rpc::{endpoint::broadcast::tx_sync::Response, Client, HttpClient, Order};
 use tokio::runtime::Runtime as TokioRuntime;
 
-use super::cosmos;
-use super::cosmos::TxSyncResult;
 use super::tx::TrackedMsgs;
-use crate::chain::StatusResponse;
+use crate::chain::client::ClientSettings;
+use crate::chain::cosmos;
+use crate::chain::cosmos::types::tx::TxSyncResult;
+use crate::chain::ChainStatus;
 use crate::config::ChainConfig;
 use crate::error::Error;
 use crate::event::monitor::TxMonitorCmd;
@@ -80,6 +82,7 @@ const WASM_DIR: &str = "anoma_wasm";
 const WASM_FILE: &str = "tx_ibc.wasm";
 const FEE_TOKEN: &str = "XAN";
 const DEFAULT_MAX_GAS: u64 = 100_000;
+const WAIT_BACKOFF: Duration = Duration::from_millis(300);
 
 pub struct AnomaChain {
     config: ChainConfig,
@@ -146,54 +149,41 @@ impl AnomaChain {
         &self,
         mut tx_sync_results: Vec<TxSyncResult>,
     ) -> Result<Vec<TxSyncResult>, Error> {
-        // TODO same as cosmos.rs
-        use crate::util::retry::{retry_with_index, RetryResult};
+        let start_time = Instant::now();
+        loop {
+            if cosmos::wait::all_tx_results_found(&tx_sync_results) {
+                return Ok(tx_sync_results);
+            }
 
-        // Wait a little bit initially
-        thread::sleep(Duration::from_millis(200));
+            let elapsed = start_time.elapsed();
+            if elapsed > self.config.rpc_timeout {
+                return Err(Error::tx_no_confirmation());
+            }
 
-        let result = retry_with_index(
-            cosmos::retry_strategy::wait_for_block_commits(self.config.rpc_timeout),
-            |index| {
-                if cosmos::all_tx_results_found(&tx_sync_results) {
-                    // All transactions confirmed
-                    return RetryResult::Ok(());
-                }
+            thread::sleep(WAIT_BACKOFF);
 
-                for TxSyncResult { response, events } in tx_sync_results.iter_mut() {
-                    // If this transaction was not committed, determine whether it was because it failed
-                    // or because it hasn't been committed yet.
-                    if cosmos::empty_event_present(events) {
-                        // If the transaction failed, replace the events with an error,
-                        // so that we don't attempt to resolve the transaction later on.
-                        if response.code.value() != 0 {
-                            *events = vec![IbcEvent::ChainError(format!(
-                                "deliver_tx on chain {} for Tx hash {} reports error: code={:?}, log={:?}",
-                                self.id(), response.hash, response.code, response.log
-                            ))];
-
-                            // Otherwise, try to resolve transaction hash to the corresponding events.
-                        } else if let Ok(events_per_tx) =
-                            self.query_txs(QueryTxRequest::Transaction(QueryTxHash(response.hash)))
-                        {
-                            // If we get events back, progress was made, so we replace the events
-                            // with the new ones. in both cases we will check in the next iteration
-                            // whether or not the transaction was fully committed.
-                            if !events_per_tx.is_empty() {
-                                *events = events_per_tx;
-                            }
+            for TxSyncResult { response, events } in tx_sync_results.iter_mut() {
+                if cosmos::wait::empty_event_present(events) {
+                    // If the transaction failed, replace the events with an error,
+                    // so that we don't attempt to resolve the transaction later on.
+                    if response.code.value() != 0 {
+                        *events = vec![IbcEvent::ChainError(format!(
+                            "deliver_tx on chain {} for Tx hash {} reports error: code={:?}, log={:?}",
+                            self.id(), response.hash, response.code, response.log
+                        ))];
+                    // Otherwise, try to resolve transaction hash to the corresponding events.
+                    } else if let Ok(events_per_tx) =
+                        self.query_txs(QueryTxRequest::Transaction(QueryTxHash(response.hash)))
+                    {
+                        // If we get events back, progress was made, so we replace the events
+                        // with the new ones. in both cases we will check in the next iteration
+                        // whether or not the transaction was fully committed.
+                        if !events_per_tx.is_empty() {
+                            *events = events_per_tx;
                         }
                     }
                 }
-                RetryResult::Retry(index)
-            },
-        );
-
-        match result {
-            // All transactions confirmed
-            Ok(()) => Ok(tx_sync_results),
-            // Did not find confirmation
-            Err(_) => Err(Error::tx_no_confirmation()),
+            }
         }
     }
 
@@ -429,9 +419,9 @@ impl ChainEndpoint for AnomaChain {
         let mut tx_sync_results = vec![];
         for msg in proto_msgs.iter() {
             let events_per_tx = vec![IbcEvent::default(); proto_msgs.len()];
-            let tx_sync_result = self.send_tx(msg)?;
+            let response = self.send_tx(msg)?;
             tx_sync_results.push(TxSyncResult {
-                response: tx_sync_result,
+                response,
                 events: events_per_tx,
             });
         }
@@ -507,8 +497,7 @@ impl ChainEndpoint for AnomaChain {
         Ok(commitment_prefix())
     }
 
-    fn query_status(&self) -> Result<StatusResponse, Error> {
-        // TODO same as cosmos.rs
+    fn query_status(&self) -> Result<ChainStatus, Error> {
         let status = self
             .rt
             .block_on(self.rpc_client.status())
@@ -527,7 +516,7 @@ impl ChainEndpoint for AnomaChain {
             revision_height: u64::from(status.sync_info.latest_block_height),
         };
 
-        Ok(StatusResponse {
+        Ok(ChainStatus {
             height,
             timestamp: time.into(),
         })
@@ -876,7 +865,7 @@ impl ChainEndpoint for AnomaChain {
                 let mut result: Vec<IbcEvent> = vec![];
                 for seq in &request.sequences {
                     // query first (and only) Tx that includes the event specified in the query request
-                    let events = self.query_events(cosmos::packet_query(&request, *seq))?;
+                    let events = self.query_events(cosmos::query::packet_query(&request, *seq))?;
                     let events: Vec<IbcEvent> = events
                         .into_iter()
                         .filter(|e| e.event_type().as_str() == request.event_id.as_str())
@@ -895,7 +884,7 @@ impl ChainEndpoint for AnomaChain {
                 let mut response = self
                     .rt
                     .block_on(self.rpc_client.tx_search(
-                        cosmos::header_query(&request),
+                        cosmos::query::header_query(&request),
                         false,
                         1,
                         1, // get only the first Tx matching the query
@@ -914,7 +903,11 @@ impl ChainEndpoint for AnomaChain {
                 );
 
                 let tx = response.txs.remove(0);
-                let event = cosmos::update_client_from_tx_search_response(self.id(), &request, tx);
+                let event = cosmos::query::tx::update_client_from_tx_search_response(
+                    self.id(),
+                    &request,
+                    tx,
+                );
 
                 Ok(event.into_iter().collect())
             }
@@ -943,7 +936,7 @@ impl ChainEndpoint for AnomaChain {
                     let response = self
                         .rt
                         .block_on(self.rpc_client.block_search(
-                            cosmos::packet_query(&request, *seq),
+                            cosmos::query::packet_query(&request, *seq),
                             1,
                             1, // there should only be a single match for this query
                             Order::Ascending,
@@ -990,6 +983,21 @@ impl ChainEndpoint for AnomaChain {
                 Ok((begin_block_events, end_block_events))
             }
         }
+    }
+
+    fn query_host_consensus_state(&self, height: ICSHeight) -> Result<Self::ConsensusState, Error> {
+        // TODO same as cosmos.rs
+        let height = Height::try_from(height.revision_height).map_err(Error::invalid_height)?;
+
+        // TODO(hu55a1n1): use the `/header` RPC endpoint instead when we move to tendermint v0.35.x
+        let rpc_call = match height.value() {
+            0 => self.rpc_client.latest_block(),
+            _ => self.rpc_client.block(height),
+        };
+        let response = self.rt
+            .block_on(rpc_call)
+            .map_err(|e| Error::rpc(self.config.rpc_addr.clone(), e))?;
+        Ok(response.block.header.into())
     }
 
     fn proven_client_state(
@@ -1081,19 +1089,23 @@ impl ChainEndpoint for AnomaChain {
     fn build_client_state(
         &self,
         height: ICSHeight,
-        _dst_config: ChainConfig,
+        settings: ClientSettings,
     ) -> Result<Self::ClientState, Error> {
-        // TODO trusted_period, unbonding_period and max_clock_drift
+        let ClientSettings::Tendermint(settings) = settings;
+        // TODO set unbonding_period
         let unbonding_period = Duration::new(1814400, 0);
-        let trusting_period = 2 * unbonding_period / 3;
-        let max_clock_drift = Duration::new(10, 0);
+        let trusting_period = settings.trusting_period.unwrap_or_else(|| {
+            self.config
+                .trusting_period
+                .unwrap_or(2 * unbonding_period / 3)
+        });
         // TODO confirm parameters for Anoma
         ClientState::new(
             self.id().clone(),
             self.config.trust_threshold.into(),
             trusting_period,
             unbonding_period,
-            max_clock_drift,
+            settings.max_clock_drift,
             height,
             self.config.proof_specs.clone(),
             vec!["upgrade".to_string(), "upgradedIBCState".to_string()],

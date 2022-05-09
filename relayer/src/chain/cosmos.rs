@@ -1448,7 +1448,7 @@ impl ChainEndpoint for CosmosSdkChain {
     }
 }
 
-fn filter_matching_event(
+pub fn filter_matching_event(
     event: Event,
     request: &QueryPacketEventDataRequest,
     seq: Sequence,

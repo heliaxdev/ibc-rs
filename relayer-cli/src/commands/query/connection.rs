@@ -7,7 +7,7 @@ use ibc::core::{
     ics24_host::identifier::{ChainId, PortChannelId},
 };
 use ibc_proto::ibc::core::channel::v1::QueryConnectionChannelsRequest;
-use ibc_relayer::chain::handle::{ChainHandle, ProdChainHandle};
+use ibc_relayer::chain::handle::{ChainHandle, BaseChainHandle};
 
 use crate::conclude::Output;
 use crate::error::Error;
@@ -30,7 +30,7 @@ impl Runnable for QueryConnectionEndCmd {
     fn run(&self) {
         debug!("Options: {:?}", self);
 
-        let chain = super::get_chain_handle::<ProdChainHandle>(&self.chain_id);
+        let chain = super::get_chain_handle::<BaseChainHandle>(&self.chain_id);
 
         let height = ibc::Height::new(chain.id().version(), self.height.unwrap_or(0_u64));
         let res = chain.query_connection(&self.connection_id, height);
@@ -67,7 +67,7 @@ impl Runnable for QueryConnectionChannelsCmd {
     fn run(&self) {
         debug!("Options: {:?}", self);
 
-        let chain = super::get_chain_handle::<ProdChainHandle>(&self.chain_id);
+        let chain = super::get_chain_handle::<BaseChainHandle>(&self.chain_id);
 
         let req = QueryConnectionChannelsRequest {
             connection: self.connection_id.to_string(),
