@@ -135,7 +135,7 @@ dependencies = [
 [[package]]
 name = "anoma"
 version = "0.5.0"
-source = "git+https://github.com/anoma/anoma?branch=yuji/ibc_test_ibc-rs_v0.14#4d607bbc58587f922c67ef999f306135259f6274"
+source = "git+https://github.com/anoma/anoma?branch=yuji/ibc_test_ibc-rs_v0.14#38186c92aa2f4739426fcff02b8ab36e37ffc36f"
 dependencies = [
  "anoma_proof_of_stake",
  "ark-bls12-381",
@@ -184,7 +184,7 @@ dependencies = [
 [[package]]
 name = "anoma_apps"
 version = "0.5.0"
-source = "git+https://github.com/anoma/anoma?branch=yuji/ibc_test_ibc-rs_v0.14#4d607bbc58587f922c67ef999f306135259f6274"
+source = "git+https://github.com/anoma/anoma?branch=yuji/ibc_test_ibc-rs_v0.14#38186c92aa2f4739426fcff02b8ab36e37ffc36f"
 dependencies = [
  "anoma",
  "ark-serialize",
@@ -263,7 +263,7 @@ dependencies = [
 [[package]]
 name = "anoma_proof_of_stake"
 version = "0.5.0"
-source = "git+https://github.com/anoma/anoma?branch=yuji/ibc_test_ibc-rs_v0.14#4d607bbc58587f922c67ef999f306135259f6274"
+source = "git+https://github.com/anoma/anoma?branch=yuji/ibc_test_ibc-rs_v0.14#38186c92aa2f4739426fcff02b8ab36e37ffc36f"
 dependencies = [
  "borsh",
  "thiserror",
@@ -3000,7 +3000,7 @@ dependencies = [
 [[package]]
 name = "ibc"
 version = "0.14.0"
-source = "git+https://github.com/heliaxdev/ibc-rs?branch=yuji/v0.14.0_tm_v0.23.5#d5b74b12d6601c759c6f927fe9649e7f32452dce"
+source = "git+https://github.com/heliaxdev/ibc-rs?branch=yuji/v0.14.0_tm_v0.23.5#e22ff9f372ceb2f2e7fc4efc949cfafa853febf1"
 dependencies = [
  "bytes 1.1.0",
  "derive_more",
@@ -3057,7 +3057,7 @@ dependencies = [
 [[package]]
 name = "ibc-proto"
 version = "0.17.1"
-source = "git+https://github.com/heliaxdev/ibc-rs?branch=yuji/v0.14.0_tm_v0.23.5#d5b74b12d6601c759c6f927fe9649e7f32452dce"
+source = "git+https://github.com/heliaxdev/ibc-rs?branch=yuji/v0.14.0_tm_v0.23.5#e22ff9f372ceb2f2e7fc4efc949cfafa853febf1"
 dependencies = [
  "base64 0.13.0",
  "bytes 1.1.0",
