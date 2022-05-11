@@ -135,7 +135,7 @@ dependencies = [
 [[package]]
 name = "anoma"
 version = "0.5.0"
-source = "git+https://github.com/anoma/anoma?branch=yuji/query_with_height#3697e7fed289e5992137a9760b6b1d546c4d697e"
+source = "git+https://github.com/anoma/anoma?branch=yuji/ibc_test#624ec88df62d8ce33148aa36b9be62b589bdbfb6"
 dependencies = [
  "anoma_proof_of_stake",
  "ark-bls12-381",
@@ -184,7 +184,7 @@ dependencies = [
 [[package]]
 name = "anoma_apps"
 version = "0.5.0"
-source = "git+https://github.com/anoma/anoma?branch=yuji/query_with_height#3697e7fed289e5992137a9760b6b1d546c4d697e"
+source = "git+https://github.com/anoma/anoma?branch=yuji/ibc_test#624ec88df62d8ce33148aa36b9be62b589bdbfb6"
 dependencies = [
  "anoma",
  "ark-serialize",
@@ -263,7 +263,7 @@ dependencies = [
 [[package]]
 name = "anoma_proof_of_stake"
 version = "0.5.0"
-source = "git+https://github.com/anoma/anoma?branch=yuji/query_with_height#3697e7fed289e5992137a9760b6b1d546c4d697e"
+source = "git+https://github.com/anoma/anoma?branch=yuji/ibc_test#624ec88df62d8ce33148aa36b9be62b589bdbfb6"
 dependencies = [
  "borsh",
  "thiserror",
