@@ -369,7 +369,9 @@ impl KeyRing {
                 let sign_msg = Message::from_slice(hash.as_slice()).unwrap();
                 let key = SecretKey::from_slice(private_key_bytes.as_slice())
                     .map_err(Error::invalid_key_raw)?;
-                let (_, sig_bytes) = s.sign_ecdsa_recoverable(&sign_msg, &key).serialize_compact();
+                let (_, sig_bytes) = s
+                    .sign_ecdsa_recoverable(&sign_msg, &key)
+                    .serialize_compact();
                 Ok(sig_bytes.to_vec())
             }
             AddressType::Cosmos | AddressType::Ethermint { .. } => {
@@ -400,7 +402,12 @@ fn private_key_from_mnemonic(
     let seed = Seed::new(&mnemonic, "");
 
     let private_key = ExtendedPrivKey::new_master(Network::Bitcoin, seed.as_bytes())
-        .and_then(|k| k.derive_priv(&Secp256k1::new(), &DerivationPath::from(Vec::<ChildNumber>::from(hd_path))))
+        .and_then(|k| {
+            k.derive_priv(
+                &Secp256k1::new(),
+                &DerivationPath::from(Vec::<ChildNumber>::from(hd_path)),
+            )
+        })
         .map_err(Error::private_key)?;
 
     Ok(private_key)
