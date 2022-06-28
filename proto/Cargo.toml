@@ -30,7 +30,7 @@ serde = { version = "1.0", default-features = false }
 
 [dependencies.tendermint-proto]
 git = "https://github.com/heliaxdev/tendermint-rs"
-branch = "bat/abcipp-rebase-master"
+rev = "95c52476bc37927218374f94ac8e2a19bd35bec9"
 default-features = false
 
 [features]

@@ -59,26 +59,26 @@ signal-hook = "0.3.13"
 
 [dependencies.tendermint-proto]
 git = "https://github.com/heliaxdev/tendermint-rs"
-branch = "bat/abcipp-rebase-master"
+rev = "95c52476bc37927218374f94ac8e2a19bd35bec9"
 
 [dependencies.tendermint]
 git = "https://github.com/heliaxdev/tendermint-rs"
-branch = "bat/abcipp-rebase-master"
+rev = "95c52476bc37927218374f94ac8e2a19bd35bec9"
 features = ["secp256k1"]
 
 [dependencies.tendermint-rpc]
 git = "https://github.com/heliaxdev/tendermint-rs"
-branch = "bat/abcipp-rebase-master"
+rev = "95c52476bc37927218374f94ac8e2a19bd35bec9"
 features = ["http-client", "websocket-client"]
 
 [dependencies.tendermint-light-client]
 git = "https://github.com/heliaxdev/tendermint-rs"
-branch = "bat/abcipp-rebase-master"
+rev = "95c52476bc37927218374f94ac8e2a19bd35bec9"
 features = ["unstable"]
 
 [dependencies.tendermint-light-client-verifier]
 git = "https://github.com/heliaxdev/tendermint-rs"
-branch = "bat/abcipp-rebase-master"
+rev = "95c52476bc37927218374f94ac8e2a19bd35bec9"
 
 [dependencies.abscissa_core]
 version = "=0.6.0"

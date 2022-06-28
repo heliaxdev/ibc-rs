@@ -4,7 +4,7 @@ use crate::prelude::*;
 use tendermint::{block, consensus, duration::Duration, evidence, public_key::Algorithm};
 
 use crate::signer::Signer;
-use tendermint::consensus::params::{TimeoutParams, SynchronyParams};
+use tendermint::consensus::params::{SynchronyParams, TimeoutParams};
 
 // Needed in mocks.
 pub fn default_consensus_params() -> consensus::Params {
@@ -34,7 +34,6 @@ pub fn default_consensus_params() -> consensus::Params {
             commit: Duration::from_millis(1000),
             bypass_commit_timeout: false,
         },
-        abci: Default::default(),
     }
 }
 
