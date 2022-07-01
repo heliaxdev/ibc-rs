@@ -40,7 +40,6 @@ pub fn default_consensus_params() -> consensus::Params {
             commit: Duration::from_millis(1000),
             bypass_commit_timeout: false,
         },
-        abci: Default::default(),
     }
 }
 
