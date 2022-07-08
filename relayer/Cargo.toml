@@ -26,8 +26,8 @@ ibc           = { git = "https://github.com/heliaxdev/ibc-rs", branch = "yuji/v0
 ibc-proto     = { git = "https://github.com/heliaxdev/ibc-rs", branch = "yuji/v0.14.0_tm_v0.23.5" }
 ibc-telemetry = { git = "https://github.com/heliaxdev/ibc-rs", branch = "yuji/v0.14.0_tm_v0.23.5", optional = true }
 
-anoma_apps = { git = "https://github.com/anoma/anoma", branch = "yuji/ibc_test_ibc-rs_v0.14" }
-anoma = { git = "https://github.com/anoma/anoma", branch = "yuji/ibc_test_ibc-rs_v0.14", default-features = false, features = ["ABCI", "ibc-mocks-abci"] }
+anoma_apps = { git = "https://github.com/anoma/anoma", branch = "justin/ibc-test-0.14-rebase-0.6.1" }
+anoma = { git = "https://github.com/anoma/anoma", branch = "justin/ibc-test-0.14-rebase-0.6.1", default-features = false, features = ["ABCI", "ibc-mocks-abci"] }
 
 subtle-encoding = "0.5"
 humantime-serde = "1.1.1"

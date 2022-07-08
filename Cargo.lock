@@ -134,8 +134,8 @@ dependencies = [
 
 [[package]]
 name = "anoma"
-version = "0.5.0"
-source = "git+https://github.com/anoma/anoma?branch=yuji/ibc_test_ibc-rs_v0.14#38186c92aa2f4739426fcff02b8ab36e37ffc36f"
+version = "0.6.1"
+source = "git+https://github.com/anoma/anoma?branch=justin/ibc-test-0.14-rebase-0.6.1#b63bb4ed6b0687ba38ed2d0026766b4acf94229b"
 dependencies = [
  "anoma_proof_of_stake",
  "ark-bls12-381",
@@ -183,8 +183,8 @@ dependencies = [
 
 [[package]]
 name = "anoma_apps"
-version = "0.5.0"
-source = "git+https://github.com/anoma/anoma?branch=yuji/ibc_test_ibc-rs_v0.14#38186c92aa2f4739426fcff02b8ab36e37ffc36f"
+version = "0.6.1"
+source = "git+https://github.com/anoma/anoma?branch=justin/ibc-test-0.14-rebase-0.6.1#b63bb4ed6b0687ba38ed2d0026766b4acf94229b"
 dependencies = [
  "anoma",
  "ark-serialize",
@@ -200,6 +200,7 @@ dependencies = [
  "clap 3.0.0-beta.2",
  "color-eyre 0.5.11",
  "config",
+ "curl",
  "derivative",
  "directories",
  "ed25519-consensus",
@@ -262,8 +263,8 @@ dependencies = [
 
 [[package]]
 name = "anoma_proof_of_stake"
-version = "0.5.0"
-source = "git+https://github.com/anoma/anoma?branch=yuji/ibc_test_ibc-rs_v0.14#38186c92aa2f4739426fcff02b8ab36e37ffc36f"
+version = "0.6.1"
+source = "git+https://github.com/anoma/anoma?branch=justin/ibc-test-0.14-rebase-0.6.1#b63bb4ed6b0687ba38ed2d0026766b4acf94229b"
 dependencies = [
  "borsh",
  "thiserror",
@@ -1076,6 +1077,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c4872d67bab6358e59559027aa3b9157c53d9358c51423c17554809a8858e0f8"
 
 [[package]]
+name = "bzip2-sys"
+version = "0.1.11+1.0.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "736a955f3fa7875102d57c82b8cac37ec45224a07fd32d58f9f7a186b6cd4cdc"
+dependencies = [
+ "cc",
+ "libc",
+ "pkg-config",
+]
+
+[[package]]
 name = "cache-padded"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1710,6 +1722,36 @@ dependencies = [
  "byteorder",
  "fnv",
  "rand 0.7.3",
+]
+
+[[package]]
+name = "curl"
+version = "0.4.43"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "37d855aeef205b43f65a5001e0997d81f8efca7badad4fad7d897aa7f0d0651f"
+dependencies = [
+ "curl-sys",
+ "libc",
+ "openssl-probe",
+ "openssl-sys",
+ "schannel",
+ "socket2 0.4.2",
+ "winapi 0.3.9",
+]
+
+[[package]]
+name = "curl-sys"
+version = "0.4.55+curl-7.83.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "23734ec77368ec583c2e61dd3f0b0e5c98b93abe6d2a004ca06b91dd7e3e2762"
+dependencies = [
+ "cc",
+ "libc",
+ "libz-sys",
+ "openssl-sys",
+ "pkg-config",
+ "vcpkg",
+ "winapi 0.3.9",
 ]
 
 [[package]]
@@ -3972,14 +4014,17 @@ dependencies = [
 
 [[package]]
 name = "librocksdb-sys"
-version = "6.20.3"
+version = "0.6.1+6.28.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c309a9d2470844aceb9a4a098cf5286154d20596868b75a6b36357d2bb9ca25d"
+checksum = "81bc587013734dadb7cf23468e531aa120788b87243648be42e2d3a072186291"
 dependencies = [
  "bindgen",
+ "bzip2-sys",
  "cc",
  "glob",
  "libc",
+ "libz-sys",
+ "zstd-sys",
 ]
 
 [[package]]
@@ -5824,9 +5869,9 @@ dependencies = [
 
 [[package]]
 name = "rocksdb"
-version = "0.16.0"
+version = "0.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c749134fda8bfc90d0de643d59bfc841dcb3ac8a1062e12b6754bd60235c48b3"
+checksum = "620f4129485ff1a7128d184bc687470c21c7951b64779ebc9cfdad3dcd920290"
 dependencies = [
  "libc",
  "librocksdb-sys",
@@ -8714,4 +8759,14 @@ dependencies = [
  "quote",
  "syn",
  "synstructure",
+]
+
+[[package]]
+name = "zstd-sys"
+version = "1.6.3+zstd.1.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fc49afa5c8d634e75761feda8c592051e7eeb4683ba827211eb0d731d3402ea8"
+dependencies = [
+ "cc",
+ "libc",
 ]
