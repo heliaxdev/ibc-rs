@@ -105,7 +105,9 @@ impl AnomaChain {
         let mut wallet = Wallet::load_or_new(&wallet_path);
 
         // TODO key for this relayer
-        let secret_key = wallet.find_key("albert-key").map_err(Error::anoma_wallet)?;
+        let secret_key = wallet
+            .find_key(&self.config.key_name)
+            .map_err(Error::anoma_wallet)?;
         let signed_tx = tx.sign(&secret_key);
         let tx_hash = signed_tx.hash();
 
@@ -994,7 +996,8 @@ impl ChainEndpoint for AnomaChain {
             0 => self.rpc_client.latest_block(),
             _ => self.rpc_client.block(height),
         };
-        let response = self.rt
+        let response = self
+            .rt
             .block_on(rpc_call)
             .map_err(|e| Error::rpc(self.config.rpc_addr.clone(), e))?;
         Ok(response.block.header.into())
