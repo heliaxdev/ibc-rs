@@ -96,11 +96,11 @@ impl<Chain: ChainHandle> PendingTxs<Chain> {
                 );
 
                 let error_event = IbcEvent::ChainError(format!(
-                    "deliver_tx on chain {} for Tx hash {} reports error: code={:?}, log={:?}",
+                    "deliver_tx on chain {} for Tx hash {} reports error: code={:?}, data={:?}",
                     self.chain_id(),
                     response.hash,
                     response.code,
-                    response.log
+                    response.data,
                 ));
                 error_events.push(error_event);
             } else {
