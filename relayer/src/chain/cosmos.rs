@@ -870,8 +870,8 @@ impl CosmosSdkChain {
                         // so that we don't attempt to resolve the transaction later on.
                         if response.code.value() != 0 {
                             *events = vec![IbcEvent::ChainError(format!(
-                                "deliver_tx on chain {} for Tx hash {} reports error: code={:?}, log={:?}",
-                                self.id(), response.hash, response.code, response.log
+                                "deliver_tx on chain {} for Tx hash {} reports error: code={:?}, data={:?}",
+                                self.id(), response.hash, response.code, response.data
                             ))];
 
                             // Otherwise, try to resolve transaction hash to the corresponding events.
