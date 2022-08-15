@@ -99,13 +99,13 @@ impl AnomaChain {
             .map_err(|e| Error::protobuf_encode(String::from("Message"), e))?;
         let tx = Tx::new(tx_code, Some(tx_data));
 
-        // TODO set the wallet to self
-        // TODO when no account is initialized
+        // the wallet should exist because it's confirmed when the bootstrap
         let wallet_path = Path::new(BASE_WALLET_DIR).join(self.config.id.to_string());
-        let mut wallet = Wallet::load_or_new(&wallet_path);
+        let mut wallet = Wallet::load(&wallet_path).expect("wallet has not been initialized yet");
+        let secret_key = wallet
+            .find_key(&self.config.key_name)
+            .map_err(Error::anoma_wallet)?;
 
-        // TODO key for this relayer
-        let secret_key = wallet.find_key("albert-key").map_err(Error::anoma_wallet)?;
         let signed_tx = tx.sign(&secret_key);
         let tx_hash = signed_tx.hash();
 
@@ -313,10 +313,19 @@ impl ChainEndpoint for AnomaChain {
         let keybase = KeyRing::new(config.key_store_type, &config.account_prefix, &config.id)
             .map_err(Error::key_base)?;
 
+        // check if the wallet has been set up for this relayer
+        let wallet_path = Path::new(BASE_WALLET_DIR).join(config.id.to_string());
+        let mut wallet = Wallet::load(&wallet_path).expect("wallet has not been initialized yet");
+        wallet
+            .find_key(&config.key_name)
+            .map_err(Error::anoma_wallet)?;
+
         // overwrite the proof spec
         // TODO: query the proof spec
         let config = ChainConfig {
-            proof_specs: MerkleTree::<Sha256Hasher>::default().proof_specs().into(),
+            proof_specs: MerkleTree::<Sha256Hasher>::default()
+                .ibc_proof_specs()
+                .into(),
             ..config
         };
 
@@ -460,9 +469,8 @@ impl ChainEndpoint for AnomaChain {
     }
 
     fn get_signer(&mut self) -> Result<Signer, Error> {
-        // TODO set the wallet to self
         let wallet_path = Path::new(BASE_WALLET_DIR).join(self.config.id.to_string());
-        let wallet = Wallet::load_or_new(&wallet_path);
+        let wallet = Wallet::load(&wallet_path).expect("wallet has not been initialized yet");
         let address = wallet
             .find_address(&self.config.key_name)
             .ok_or_else(|| Error::anoma_address(self.config.key_name.clone()))?;
@@ -475,22 +483,11 @@ impl ChainEndpoint for AnomaChain {
     }
 
     fn get_key(&mut self) -> Result<KeyEntry, Error> {
-        // TODO get the key from the wallet
-        let key = self
-            .keybase()
-            .get_key(&self.config.key_name)
-            .map_err(|e| Error::key_not_found(self.config.key_name.clone(), e))?;
-
-        Ok(key)
+        unreachable!("this chain should use its wallet")
     }
 
-    fn add_key(&mut self, key_name: &str, key: KeyEntry) -> Result<(), Error> {
-        // TODO add the key to the wallet
-        self.keybase_mut()
-            .add_key(key_name, key)
-            .map_err(Error::key_base)?;
-
-        Ok(())
+    fn add_key(&mut self, _key_name: &str, _key: KeyEntry) -> Result<(), Error> {
+        unreachable!("this chain should use its wallet")
     }
 
     fn query_commitment_prefix(&self) -> Result<CommitmentPrefix, Error> {
@@ -924,7 +921,6 @@ impl ChainEndpoint for AnomaChain {
         &self,
         request: QueryBlockRequest,
     ) -> Result<(Vec<IbcEvent>, Vec<IbcEvent>), Error> {
-        // TODO same as cosmos.rs
         match request {
             QueryBlockRequest::Packet(request) => {
                 crate::time!("query_blocks: query block packet events");
@@ -986,7 +982,6 @@ impl ChainEndpoint for AnomaChain {
     }
 
     fn query_host_consensus_state(&self, height: ICSHeight) -> Result<Self::ConsensusState, Error> {
-        // TODO same as cosmos.rs
         let height = Height::try_from(height.revision_height).map_err(Error::invalid_height)?;
 
         // TODO(hu55a1n1): use the `/header` RPC endpoint instead when we move to tendermint v0.35.x
@@ -994,7 +989,8 @@ impl ChainEndpoint for AnomaChain {
             0 => self.rpc_client.latest_block(),
             _ => self.rpc_client.block(height),
         };
-        let response = self.rt
+        let response = self
+            .rt
             .block_on(rpc_call)
             .map_err(|e| Error::rpc(self.config.rpc_addr.clone(), e))?;
         Ok(response.block.header.into())
