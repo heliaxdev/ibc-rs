@@ -61,26 +61,26 @@ console = "0.15.0"
 
 [dependencies.tendermint-proto]
 git = "https://github.com/heliaxdev/tendermint-rs"
-branch = "bat/v0.36.x"
+branch = "bat/abciplus"
 
 [dependencies.tendermint]
 git = "https://github.com/heliaxdev/tendermint-rs"
-branch = "bat/v0.36.x"
+branch = "bat/abciplus"
 features = ["secp256k1"]
 
 [dependencies.tendermint-rpc]
 git = "https://github.com/heliaxdev/tendermint-rs"
-branch = "bat/v0.36.x"
+branch = "bat/abciplus"
 features = ["http-client", "websocket-client"]
 
 [dependencies.tendermint-light-client]
 git = "https://github.com/heliaxdev/tendermint-rs"
-branch = "bat/v0.36.x"
+branch = "bat/abciplus"
 features = ["unstable"]
 
 [dependencies.tendermint-light-client-verifier]
 git = "https://github.com/heliaxdev/tendermint-rs"
-branch = "bat/v0.36.x"
+branch = "bat/abciplus"
 
 [dependencies.abscissa_core]
 version = "=0.6.0"

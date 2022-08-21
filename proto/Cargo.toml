@@ -33,7 +33,7 @@ base64      = { version = "0.13", default-features = false, features = ["alloc"]
 
 [dependencies.tendermint-proto]
 git = "https://github.com/heliaxdev/tendermint-rs"
-branch = "bat/v0.36.x"
+branch = "bat/abciplus"
 default-features = false
 
 [features]
