@@ -33,7 +33,7 @@ base64      = { version = "0.13", default-features = false, features = ["alloc"]
 
 [dependencies.tendermint-proto]
 git = "https://github.com/heliaxdev/tendermint-rs"
-branch = "yuji/abciplus_rpc"
+branch = "yuji/abciplus_rpc_params"
 default-features = false
 
 [features]

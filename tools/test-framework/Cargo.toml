@@ -18,8 +18,8 @@ ibc             = { path = "../../modules" }
 ibc-relayer     = { path = "../../relayer" }
 ibc-relayer-cli = { path = "../../relayer-cli" }
 ibc-proto       = { path = "../../proto" }
-tendermint      = { git = "https://github.com/heliaxdev/tendermint-rs", branch = "yuji/abciplus_rpc" }
-tendermint-rpc  = { git = "https://github.com/heliaxdev/tendermint-rs", branch = "yuji/abciplus_rpc", features = ["http-client", "websocket-client"] }
+tendermint      = { git = "https://github.com/heliaxdev/tendermint-rs", branch = "yuji/abciplus_rpc_params" }
+tendermint-rpc  = { git = "https://github.com/heliaxdev/tendermint-rs", branch = "yuji/abciplus_rpc_params", features = ["http-client", "websocket-client"] }
 
 tokio = { version = "1.0", features = ["full"] }
 tracing = "0.1.34"

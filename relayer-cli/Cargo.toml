@@ -61,26 +61,26 @@ console = "0.15.0"
 
 [dependencies.tendermint-proto]
 git = "https://github.com/heliaxdev/tendermint-rs"
-branch = "yuji/abciplus_rpc"
+branch = "yuji/abciplus_rpc_params"
 
 [dependencies.tendermint]
 git = "https://github.com/heliaxdev/tendermint-rs"
-branch = "yuji/abciplus_rpc"
+branch = "yuji/abciplus_rpc_params"
 features = ["secp256k1"]
 
 [dependencies.tendermint-rpc]
 git = "https://github.com/heliaxdev/tendermint-rs"
-branch = "yuji/abciplus_rpc"
+branch = "yuji/abciplus_rpc_params"
 features = ["http-client", "websocket-client"]
 
 [dependencies.tendermint-light-client]
 git = "https://github.com/heliaxdev/tendermint-rs"
-branch = "yuji/abciplus_rpc"
+branch = "yuji/abciplus_rpc_params"
 features = ["unstable"]
 
 [dependencies.tendermint-light-client-verifier]
 git = "https://github.com/heliaxdev/tendermint-rs"
-branch = "yuji/abciplus_rpc"
+branch = "yuji/abciplus_rpc_params"
 
 [dependencies.abscissa_core]
 version = "=0.6.0"
