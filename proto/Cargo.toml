@@ -30,7 +30,7 @@ serde = { version = "1.0", default-features = false }
 
 [dependencies.tendermint-proto]
 git = "https://github.com/heliaxdev/tendermint-rs"
-branch = "bat/abciplus"
+branch = "tiago/abciplus"
 default-features = false
 
 [features]

@@ -59,26 +59,26 @@ signal-hook = "0.3.13"
 
 [dependencies.tendermint-proto]
 git = "https://github.com/heliaxdev/tendermint-rs"
-branch = "bat/abciplus"
+branch = "tiago/abciplus"
 
 [dependencies.tendermint]
 git = "https://github.com/heliaxdev/tendermint-rs"
-branch = "bat/abciplus"
+branch = "tiago/abciplus"
 features = ["secp256k1"]
 
 [dependencies.tendermint-rpc]
 git = "https://github.com/heliaxdev/tendermint-rs"
-branch = "bat/abciplus"
+branch = "tiago/abciplus"
 features = ["http-client", "websocket-client"]
 
 [dependencies.tendermint-light-client]
 git = "https://github.com/heliaxdev/tendermint-rs"
-branch = "bat/abciplus"
+branch = "tiago/abciplus"
 features = ["unstable"]
 
 [dependencies.tendermint-light-client-verifier]
 git = "https://github.com/heliaxdev/tendermint-rs"
-branch = "bat/abciplus"
+branch = "tiago/abciplus"
 
 [dependencies.abscissa_core]
 version = "=0.6.0"
