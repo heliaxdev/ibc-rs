@@ -21,9 +21,9 @@ if [ -z "$2" ]; then
   missing "CHAIN_0_ID"
 fi
 
-if [ -z "$3" ]; then
-  missing "CHAIN_1_ID"
-fi
+#if [ -z "$3" ]; then
+#  missing "CHAIN_1_ID"
+#fi
 
 
 if [ "$#" -gt 4 ]; then
@@ -46,10 +46,10 @@ if ! grep -q -s "$CHAIN_0_ID" "$CONFIG_FILE"; then
   usage
 fi
 
-if ! grep -q -s "$CHAIN_1_ID" "$CONFIG_FILE"; then
-  echo "error: configuration for chain [$CHAIN_1_ID] does not exist in file $CONFIG_FILE."
-  usage
-fi
+#if ! grep -q -s "$CHAIN_1_ID" "$CONFIG_FILE"; then
+#  echo "error: configuration for chain [$CHAIN_1_ID] does not exist in file $CONFIG_FILE."
+#  usage
+#fi
 
 if [ -n "$CHAIN_2_ID" ] && ! grep -q -s "$CHAIN_2_ID" "$CONFIG_FILE"; then
   echo "error: configuration for chain [$CHAIN_2_ID] does not exist in file $CONFIG_FILE."
@@ -65,8 +65,8 @@ cargo build -q --locked
 echo "Importing keys..."
 cargo run -q --bin hermes -- -c "$CONFIG_FILE" keys add "$CHAIN_0_ID" -f "$GAIA_DATA/$CHAIN_0_ID/user_seed.json"
 cargo run -q --bin hermes -- -c "$CONFIG_FILE" keys add "$CHAIN_0_ID" -f "$GAIA_DATA/$CHAIN_0_ID/user2_seed.json" -n user2
-cargo run -q --bin hermes -- -c "$CONFIG_FILE" keys add "$CHAIN_1_ID" -f "$GAIA_DATA/$CHAIN_1_ID/user_seed.json"
-cargo run -q --bin hermes -- -c "$CONFIG_FILE" keys add "$CHAIN_1_ID" -f "$GAIA_DATA/$CHAIN_1_ID/user2_seed.json" -n user2
+#cargo run -q --bin hermes -- -c "$CONFIG_FILE" keys add "$CHAIN_1_ID" -f "$GAIA_DATA/$CHAIN_1_ID/user_seed.json"
+#cargo run -q --bin hermes -- -c "$CONFIG_FILE" keys add "$CHAIN_1_ID" -f "$GAIA_DATA/$CHAIN_1_ID/user2_seed.json" -n user2
 
 if [ -n "$CHAIN_2_ID" ]; then
   cargo run -q --bin hermes -- -c "$CONFIG_FILE" keys add "$CHAIN_2_ID" -f "$GAIA_DATA/$CHAIN_2_ID/user_seed.json"

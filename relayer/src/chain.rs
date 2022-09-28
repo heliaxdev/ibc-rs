@@ -3,7 +3,7 @@ use core::convert::TryFrom;
 
 use tokio::runtime::Runtime as TokioRuntime;
 
-pub use self::anoma::AnomaChain;
+pub use self::namada::NamadaChain;
 pub use cosmos::CosmosSdkChain;
 
 use ibc::core::ics02_client::client_consensus::{
@@ -49,11 +49,11 @@ use crate::light_client::LightClient;
 use self::client::ClientSettings;
 use self::tx::TrackedMsgs;
 
-pub mod anoma;
 pub mod client;
 pub mod cosmos;
 pub mod counterparty;
 pub mod handle;
+pub mod namada;
 pub mod runtime;
 pub mod tx;
 

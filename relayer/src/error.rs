@@ -7,18 +7,23 @@ use http::uri::InvalidUri;
 use humantime::format_duration;
 use prost::{DecodeError, EncodeError};
 use tendermint::Error as TendermintError;
+use namada::tendermint::Error as AbciPlusTmError;
 use tendermint_light_client::{
     components::io::IoError as LightClientIoError, errors::Error as LightClientError,
 };
 use tendermint_proto::Error as TendermintProtoError;
+use namada::tendermint_proto::Error as AbciPlusTmProtoError;
 use tendermint_rpc::endpoint::abci_query::AbciQuery;
 use tendermint_rpc::endpoint::broadcast::tx_commit::TxResult;
 use tendermint_rpc::Error as TendermintRpcError;
+use tendermint_rpc_abciplus::endpoint::abci_query::AbciQuery as AbciPlusQuery;
+use tendermint_rpc_abciplus::Error as TendermintAbciPlusRpcError;
 use tonic::{
     metadata::errors::InvalidMetadataValue, transport::Error as TransportError,
     Status as GrpcStatus,
 };
 
+use namada::ibc::core::ics23_commitment::error as namada_commitment_error;
 use ibc::{
     clients::ics07_tendermint::error as tendermint_error,
     core::{
@@ -503,13 +508,47 @@ define_error! {
                 )
             },
 
-        AnomaWallet
-            [ TraceError<anoma_apps::wallet::FindKeyError> ]
+        NamadaWallet
+            [ TraceError<namada_apps::wallet::FindKeyError> ]
             |_| { "The keypair was not found" },
 
-        AnomaAddress
+        NamadaAddress
             { alias: String }
             |e| { format!("The address was not found for {}", e.alias) },
+
+        // for different tendermint-rs
+        AbciPlusRpc
+            { url: tendermint_rpc::Url }
+            [ TraceClone<TendermintAbciPlusRpcError> ]
+            |e| { format!("RPC error to endpoint {}", e.url) },
+
+        AbciPlusInvalidHeight
+            [ AbciPlusTmError ]
+            |_| { "invalid height" },
+
+        AbciPlusQuery
+            { query: AbciPlusQuery }
+            |e| { format!("ABCI query returned an error: {:?}", e.query) },
+
+        NamadaIcs23
+            [ namada_commitment_error::Error ]
+            |_| { "ICS 23 error" },
+
+        AbciPlusHealthCheckJsonRpc
+            {
+                chain_id: ChainId,
+                address: String,
+                endpoint: String,
+            }
+            [ DisplayOnly<TendermintAbciPlusRpcError> ]
+            |e| {
+                format!("health check failed for endpoint {0} on the JSON-RPC interface of chain {1}:{2}",
+                    e.endpoint, e.chain_id, e.address)
+            },
+
+        AbciPlusDecode
+            [ TraceError<AbciPlusTmProtoError> ]
+            |_| { "error decoding protobuf" },
     }
 }
 

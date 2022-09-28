@@ -70,7 +70,7 @@ fi
 STAKE="100000000000stake"
 
 # The user also needs stake to perform actions
-USER_COINS="${STAKE},${SAMOLEANS}samoleans"
+USER_COINS="${STAKE},${SAMOLEANS}samoleans,100000000000atest1v4ehgw36x3prswzxggunzv6pxqmnvdj9xvcyzvpsggeyvs3cg9qnywf589qnwvfsg5erg3fkl09rg5"
 
 # Hermes also needs stake to perform actions
 HERMES_COINS="${STAKE},${SAMOLEANS}samoleans"

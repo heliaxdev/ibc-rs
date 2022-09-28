@@ -1,40 +1,26 @@
 use alloc::sync::Arc;
 use core::str::FromStr;
+
 use core::time::Duration;
 use std::path::Path;
 use std::thread;
 use std::time::Instant;
 
-use anoma::ledger::ibc::handler::commitment_prefix;
-use anoma::ledger::ibc::storage;
-use anoma::ledger::storage::{MerkleTree, Sha256Hasher};
-use anoma::proto::Tx;
-use anoma::types::address::{Address, InternalAddress};
-use anoma::types::storage::{Epoch, Key, KeySeg, PrefixValue};
-use anoma::types::token::Amount;
-use anoma::types::transaction::GasLimit;
-use anoma::types::transaction::{Fee, WrapperTx};
-use anoma_apps::client::rpc::TxEventQuery;
-use anoma_apps::node::ledger::rpc::Path as AnomaPath;
-use anoma_apps::wallet::Wallet;
-use anoma_apps::wasm_loader;
 use borsh::BorshDeserialize;
 use ibc::clients::ics07_tendermint::client_state::{AllowUpdate, ClientState};
 use ibc::clients::ics07_tendermint::consensus_state::ConsensusState as TMConsensusState;
 use ibc::clients::ics07_tendermint::header::Header as TmHeader;
+use ibc::core::ics02_client::client_consensus::QueryClientEventRequest;
 use ibc::core::ics02_client::client_consensus::{AnyConsensusState, AnyConsensusStateWithHeight};
-use ibc::core::ics02_client::client_state::{
-    AnyClientState, ClientState as Ics02ClientState, IdentifiedAnyClientState,
-};
+use ibc::core::ics02_client::client_state::IdentifiedAnyClientState;
+use ibc::core::ics02_client::client_state::{AnyClientState, ClientState as Ics02ClientState};
 use ibc::core::ics03_connection::connection::{ConnectionEnd, IdentifiedConnectionEnd};
+use ibc::core::ics04_channel::channel::QueryPacketEventDataRequest;
 use ibc::core::ics04_channel::channel::{ChannelEnd, IdentifiedChannelEnd};
 use ibc::core::ics04_channel::packet::{PacketMsgType, Sequence};
 use ibc::core::ics23_commitment::commitment::CommitmentPrefix;
-use ibc::core::ics23_commitment::merkle::convert_tm_to_ics_merkle_proof;
-use ibc::core::ics24_host::identifier::{
-    ChainId, ChannelId, ClientId, ConnectionId, PortChannelId, PortId,
-};
-use ibc::events::{from_tx_response_event, IbcEvent};
+use ibc::core::ics24_host::identifier::{ChainId, ChannelId, ClientId, ConnectionId, PortId};
+use ibc::events::IbcEvent;
 use ibc::query::QueryBlockRequest;
 use ibc::query::{QueryTxHash, QueryTxRequest};
 use ibc::signer::Signer;
@@ -51,14 +37,43 @@ use ibc_proto::ibc::core::commitment::v1::MerkleProof;
 use ibc_proto::ibc::core::connection::v1::{
     QueryClientConnectionsRequest, QueryConnectionsRequest,
 };
-use tendermint::abci::tag::Tag;
+use namada::ibc::core::ics04_channel::packet::Sequence as NamadaSequence;
+use namada::ibc::core::ics23_commitment::merkle::convert_tm_to_ics_merkle_proof;
+use namada::ibc::core::ics24_host::identifier::{
+    ChannelId as NamadaChannelId, ClientId as NamadaClientId, ConnectionId as NamadaConnectionId,
+    PortChannelId as NamadaPortChannelId, PortId as NamadaPortId,
+};
+use namada::ibc::events::{from_tx_response_event, IbcEvent as NamadaIbcEvent};
+use namada::ibc::Height as NamadaIcsHeight;
+use namada::ledger::ibc::handler::commitment_prefix;
+use namada::ledger::ibc::storage;
+use namada::ledger::storage::{MerkleTree, Sha256Hasher};
+use namada::proto::Tx;
+use namada::tendermint::abci::tag::Tag;
+use namada::tendermint::abci::Code;
+use namada::tendermint::abci::Event as NamadaTmEvent;
+use namada::tendermint::block::Height;
+use namada::tendermint_proto::Protobuf as AbciPlusProtobuf;
+use namada::types::address::{Address, InternalAddress};
+use namada::types::storage::{Epoch, Key, KeySeg, PrefixValue};
+use namada::types::token::Amount;
+use namada::types::transaction::{Fee, GasLimit, WrapperTx};
+use namada_apps::client::rpc::TxEventQuery;
+use namada_apps::node::ledger::rpc::Path as NamadaPath;
+use namada_apps::wallet::Wallet;
+use namada_apps::wasm_loader;
+use prost::Message;
 use tendermint::abci::transaction::Hash;
-use tendermint::abci::Code;
-use tendermint::block::Height;
+use tendermint::Time;
 use tendermint_light_client::types::LightBlock as TMLightBlock;
+use tendermint_light_client::types::PeerId;
 use tendermint_proto::Protobuf;
-use tendermint_rpc::query::{EventType, Query};
-use tendermint_rpc::{endpoint::broadcast::tx_sync::Response, Client, HttpClient, Order};
+use tendermint_rpc::endpoint::broadcast::tx_sync::Response;
+use tendermint_rpc::endpoint::tx::Response as TxResponse;
+use tendermint_rpc_abciplus::endpoint::broadcast::tx_sync::Response as AbciPlusRpcResponse;
+use tendermint_rpc_abciplus::endpoint::tx::Response as AbciPlusTxResponse;
+use tendermint_rpc_abciplus::query::{EventType as AbciPlusEventType, Query as AbciPlusQuery};
+use tendermint_rpc_abciplus::{Client, HttpClient, Order, Url};
 use tokio::runtime::Runtime as TokioRuntime;
 
 use super::tx::TrackedMsgs;
@@ -77,21 +92,21 @@ use crate::light_client::Verified;
 
 use super::{ChainEndpoint, HealthCheck};
 
-const BASE_WALLET_DIR: &str = "anoma_wallet";
-const WASM_DIR: &str = "anoma_wasm";
+const BASE_WALLET_DIR: &str = "namada_wallet";
+const WASM_DIR: &str = "namada_wasm";
 const WASM_FILE: &str = "tx_ibc.wasm";
 const FEE_TOKEN: &str = "XAN";
 const DEFAULT_MAX_GAS: u64 = 100_000;
 const WAIT_BACKOFF: Duration = Duration::from_millis(300);
 
-pub struct AnomaChain {
+pub struct NamadaChain {
     config: ChainConfig,
     rpc_client: HttpClient,
     rt: Arc<TokioRuntime>,
     keybase: KeyRing,
 }
 
-impl AnomaChain {
+impl NamadaChain {
     fn send_tx(&mut self, proto_msg: &Any) -> Result<Response, Error> {
         let tx_code = wasm_loader::read_wasm(WASM_DIR, WASM_FILE);
         let mut tx_data = vec![];
@@ -104,14 +119,12 @@ impl AnomaChain {
         let mut wallet = Wallet::load(&wallet_path).expect("wallet has not been initialized yet");
         let secret_key = wallet
             .find_key(&self.config.key_name)
-            .map_err(Error::anoma_wallet)?;
-
+            .map_err(Error::namada_wallet)?;
         let signed_tx = tx.sign(&secret_key);
-        let tx_hash = signed_tx.hash();
 
         let fee_token_addr = wallet
             .find_address(FEE_TOKEN)
-            .ok_or_else(|| Error::anoma_address(FEE_TOKEN.to_string()))?
+            .ok_or_else(|| Error::namada_address(FEE_TOKEN.to_string()))?
             .clone();
 
         // TODO estimate the gas cost?
@@ -136,13 +149,16 @@ impl AnomaChain {
             .expect("Signing of the wrapper transaction should not fail");
         let tx_bytes = tx.to_bytes();
 
+        //let wrapper_hash = hash_tx(&wrapper_tx.try_to_vec().unwrap()).to_string();
+        let decrypted_hash = wrapper_tx.tx_hash;
+
         let mut response = self
             .rt
             .block_on(self.rpc_client.broadcast_tx_sync(tx_bytes.into()))
-            .map_err(|e| Error::rpc(self.config.rpc_addr.clone(), e))?;
+            .map_err(|e| Error::abci_plus_rpc(self.config.rpc_addr.clone(), e))?;
         // overwrite the tx hash in the response
-        response.hash = Hash::new(tx_hash);
-        Ok(response)
+        response.hash = decrypted_hash.into();
+        Ok(into_response(response))
     }
 
     fn wait_for_block_commits(
@@ -193,9 +209,11 @@ impl AnomaChain {
         height: Option<ICSHeight>,
         prove: bool,
     ) -> Result<(Vec<u8>, Option<MerkleProof>), Error> {
-        let path = AnomaPath::Value(key);
+        let path = NamadaPath::Value(key);
         let height = match height {
-            Some(h) => Some(Height::try_from(h.revision_height).map_err(Error::invalid_height)?),
+            Some(h) => {
+                Some(Height::try_from(h.revision_height).map_err(Error::abci_plus_invalid_height)?)
+            }
             None => None,
         };
         let data = vec![];
@@ -205,16 +223,19 @@ impl AnomaChain {
                 self.rpc_client
                     .abci_query(Some(path.into()), data, height, prove),
             )
-            .map_err(|e| Error::rpc(self.config.rpc_addr.clone(), e))?;
+            .map_err(|e| Error::abci_plus_rpc(self.config.rpc_addr.clone(), e))?;
         let value = match response.code {
             Code::Ok => response.value,
             Code::Err(1) => vec![],
-            Code::Err(_) => return Err(Error::abci_query(response)),
+            Code::Err(_) => return Err(Error::abci_plus_query(response)),
         };
 
         let proof = if prove {
             let p = response.proof.ok_or_else(Error::empty_response_proof)?;
-            Some(convert_tm_to_ics_merkle_proof(&p).map_err(Error::ics23)?)
+            let mp = convert_tm_to_ics_merkle_proof(&p).map_err(Error::namada_ics23)?;
+            let buf = prost::Message::encode_to_vec(&mp);
+            let proof = MerkleProof::decode(buf.as_slice()).unwrap();
+            Some(proof)
         } else {
             None
         };
@@ -223,7 +244,7 @@ impl AnomaChain {
     }
 
     fn query_prefix(&self, prefix: Key) -> Result<Vec<PrefixValue>, Error> {
-        let path = AnomaPath::Prefix(prefix);
+        let path = NamadaPath::Prefix(prefix);
         let data = vec![];
         let response = self
             .rt
@@ -231,18 +252,18 @@ impl AnomaChain {
                 self.rpc_client
                     .abci_query(Some(path.into()), data, None, false),
             )
-            .map_err(|e| Error::rpc(self.config.rpc_addr.clone(), e))?;
+            .map_err(|e| Error::abci_plus_rpc(self.config.rpc_addr.clone(), e))?;
         match response.code {
             Code::Ok => {
                 Vec::<PrefixValue>::try_from_slice(&response.value[..]).map_err(Error::borsh_decode)
             }
             Code::Err(c) if c == 1 => Ok(vec![]),
-            _ => Err(Error::abci_query(response)),
+            _ => Err(Error::abci_plus_query(response)),
         }
     }
 
     fn query_epoch(&self) -> Result<Epoch, Error> {
-        let path = AnomaPath::Epoch;
+        let path = NamadaPath::Epoch;
         let data = vec![];
         let response = self
             .rt
@@ -250,18 +271,18 @@ impl AnomaChain {
                 self.rpc_client
                     .abci_query(Some(path.into()), data, None, false),
             )
-            .map_err(|e| Error::rpc(self.config.rpc_addr.clone(), e))?;
+            .map_err(|e| Error::abci_plus_rpc(self.config.rpc_addr.clone(), e))?;
         match response.code {
             Code::Ok => Epoch::try_from_slice(&response.value[..]).map_err(Error::borsh_decode),
-            Code::Err(_) => Err(Error::abci_query(response)),
+            Code::Err(_) => Err(Error::abci_plus_query(response)),
         }
     }
 
-    fn query_events(&self, query: Query) -> Result<Vec<IbcEvent>, Error> {
+    fn query_events(&self, query: AbciPlusQuery) -> Result<Vec<IbcEvent>, Error> {
         let blocks = &self
             .rt
             .block_on(self.rpc_client.block_search(query, 1, 1, Order::Ascending))
-            .map_err(|e| Error::rpc(self.config.rpc_addr.clone(), e))?
+            .map_err(|e| Error::abci_plus_rpc(self.config.rpc_addr.clone(), e))?
             .blocks;
         let block = &blocks
             .get(0)
@@ -270,16 +291,16 @@ impl AnomaChain {
         let response = self
             .rt
             .block_on(self.rpc_client.block_results(block.header.height))
-            .map_err(|e| Error::rpc(self.config.rpc_addr.clone(), e))?;
+            .map_err(|e| Error::abci_plus_rpc(self.config.rpc_addr.clone(), e))?;
 
         let events = response
             .end_block_events
             .ok_or_else(|| Error::query("No transaction result was found".to_string()))?;
         let mut ibc_events = vec![];
         for event in &events {
-            let height = ICSHeight::new(self.id().version(), u64::from(response.height));
+            let height = NamadaIcsHeight::new(self.id().version(), u64::from(response.height));
             match from_tx_response_event(height, event) {
-                Some(e) => ibc_events.push(e),
+                Some(e) => ibc_events.push(into_ibc_event(e)),
                 None => {
                     let success_code_tag = Tag {
                         key: "code".parse().expect("The tag parsing shouldn't fail"),
@@ -298,7 +319,7 @@ impl AnomaChain {
     }
 }
 
-impl ChainEndpoint for AnomaChain {
+impl ChainEndpoint for NamadaChain {
     type LightBlock = TMLightBlock;
     type Header = TmHeader;
     type ConsensusState = TMConsensusState;
@@ -306,8 +327,9 @@ impl ChainEndpoint for AnomaChain {
     type LightClient = TmLightClient;
 
     fn bootstrap(config: ChainConfig, rt: Arc<TokioRuntime>) -> Result<Self, Error> {
-        let rpc_client = HttpClient::new(config.rpc_addr.clone())
-            .map_err(|e| Error::rpc(config.rpc_addr.clone(), e))?;
+        let rpc_addr = Url::from_str(&config.rpc_addr.to_string()).unwrap();
+        let rpc_client =
+            HttpClient::new(rpc_addr).map_err(|e| Error::abci_plus_rpc(config.rpc_addr.clone(), e))?;
 
         // not used in Anoma, but the trait requires KeyRing
         let keybase = KeyRing::new(config.key_store_type, &config.account_prefix, &config.id)
@@ -318,7 +340,7 @@ impl ChainEndpoint for AnomaChain {
         let mut wallet = Wallet::load(&wallet_path).expect("wallet has not been initialized yet");
         wallet
             .find_key(&config.key_name)
-            .map_err(Error::anoma_wallet)?;
+            .map_err(Error::namada_wallet)?;
 
         // overwrite the proof spec
         // TODO: query the proof spec
@@ -338,12 +360,11 @@ impl ChainEndpoint for AnomaChain {
     }
 
     fn init_light_client(&self) -> Result<Self::LightClient, Error> {
-        use tendermint_light_client::types::PeerId;
-        let peer_id: PeerId = self
+        let peer_id = self
             .rt
             .block_on(self.rpc_client.status())
-            .map(|s| s.node_info.id)
-            .map_err(|e| Error::rpc(self.config.rpc_addr.clone(), e))?;
+            .map(|s| PeerId::from_str(&s.node_info.id.to_string()).unwrap())
+            .map_err(|e| Error::abci_plus_rpc(self.config.rpc_addr.clone(), e))?;
 
         let light_client = TmLightClient::from_config(&self.config, peer_id)?;
 
@@ -379,7 +400,7 @@ impl ChainEndpoint for AnomaChain {
 
     fn health_check(&self) -> Result<HealthCheck, Error> {
         self.rt.block_on(self.rpc_client.health()).map_err(|e| {
-            Error::health_check_json_rpc(
+            Error::abci_plus_health_check_json_rpc(
                 self.config.id.clone(),
                 self.config.rpc_addr.to_string(),
                 "/health".to_string(),
@@ -389,14 +410,14 @@ impl ChainEndpoint for AnomaChain {
 
         self.rt
             .block_on(self.rpc_client.tx_search(
-                Query::from(EventType::NewBlock),
+                AbciPlusQuery::from(AbciPlusEventType::NewBlock),
                 false,
                 1,
                 1,
                 Order::Ascending,
             ))
             .map_err(|e| {
-                Error::health_check_json_rpc(
+                Error::abci_plus_health_check_json_rpc(
                     self.config.id.clone(),
                     self.config.rpc_addr.to_string(),
                     "/tx_search".to_string(),
@@ -473,7 +494,7 @@ impl ChainEndpoint for AnomaChain {
         let wallet = Wallet::load(&wallet_path).expect("wallet has not been initialized yet");
         let address = wallet
             .find_address(&self.config.key_name)
-            .ok_or_else(|| Error::anoma_address(self.config.key_name.clone()))?;
+            .ok_or_else(|| Error::namada_address(self.config.key_name.clone()))?;
 
         Ok(Signer::new(address))
     }
@@ -491,14 +512,14 @@ impl ChainEndpoint for AnomaChain {
     }
 
     fn query_commitment_prefix(&self) -> Result<CommitmentPrefix, Error> {
-        Ok(commitment_prefix())
+        Ok(commitment_prefix().into_vec().try_into().unwrap())
     }
 
     fn query_status(&self) -> Result<ChainStatus, Error> {
         let status = self
             .rt
             .block_on(self.rpc_client.status())
-            .map_err(|e| Error::rpc(self.config.rpc_addr.clone(), e))?;
+            .map_err(|e| Error::abci_plus_rpc(self.config.rpc_addr.clone(), e))?;
 
         if status.sync_info.catching_up {
             return Err(Error::chain_not_caught_up(
@@ -507,7 +528,7 @@ impl ChainEndpoint for AnomaChain {
             ));
         }
 
-        let time = status.sync_info.latest_block_time;
+        let time = Time::from_str(&status.sync_info.latest_block_time.to_string()).unwrap();
         let height = ICSHeight {
             revision_number: ChainId::chain_version(status.node_info.network.as_str()),
             revision_height: u64::from(status.sync_info.latest_block_height),
@@ -530,6 +551,7 @@ impl ChainEndpoint for AnomaChain {
             if key.to_string().ends_with("clientState") {
                 let client_id =
                     storage::client_id(&key).map_err(|e| Error::query(e.to_string()))?;
+                let client_id = ClientId::from_str(&client_id.to_string()).unwrap();
                 let client_state = AnyClientState::decode_vec(&value).map_err(Error::decode)?;
                 states.push(IdentifiedAnyClientState::new(client_id, client_state));
             }
@@ -543,7 +565,8 @@ impl ChainEndpoint for AnomaChain {
         client_id: &ClientId,
         height: ICSHeight,
     ) -> Result<AnyClientState, Error> {
-        let key = storage::client_state_key(client_id);
+        let client_id = NamadaClientId::from_str(&client_id.to_string()).unwrap();
+        let key = storage::client_state_key(&client_id);
         let (value, _) = self.query(key, Some(height), false)?;
         AnyClientState::decode_vec(&value).map_err(Error::decode)
     }
@@ -563,7 +586,7 @@ impl ChainEndpoint for AnomaChain {
             };
             let consensus_state = AnyConsensusState::decode_vec(&value).map_err(Error::decode)?;
             states.push(AnyConsensusStateWithHeight {
-                height,
+                height: ICSHeight::new(height.revision_number, height.revision_height),
                 consensus_state,
             });
         }
@@ -577,6 +600,11 @@ impl ChainEndpoint for AnomaChain {
         consensus_height: ICSHeight,
         query_height: ICSHeight,
     ) -> Result<AnyConsensusState, Error> {
+        let client_id = NamadaClientId::from_str(&client_id.to_string()).unwrap();
+        let consensus_height = NamadaIcsHeight::new(
+            consensus_height.revision_number,
+            consensus_height.revision_height,
+        );
         let key = storage::consensus_state_key(&client_id, consensus_height);
         let (value, _) = self.query(key, Some(query_height), false)?;
         AnyConsensusState::decode_vec(&value).map_err(Error::decode)
@@ -608,8 +636,8 @@ impl ChainEndpoint for AnomaChain {
             if key == storage::connection_counter_key() {
                 continue;
             }
-            let connection_id =
-                storage::connection_id(&key).map_err(|e| Error::query(e.to_string()))?;
+            let conn_id = storage::connection_id(&key).map_err(|e| Error::query(e.to_string()))?;
+            let connection_id = ConnectionId::from_str(&conn_id.to_string()).unwrap();
             let connection = ConnectionEnd::decode_vec(&value).map_err(Error::decode)?;
             connections.push(IdentifiedConnectionEnd::new(connection_id, connection));
         }
@@ -640,7 +668,8 @@ impl ChainEndpoint for AnomaChain {
         connection_id: &ConnectionId,
         height: ICSHeight,
     ) -> Result<ConnectionEnd, Error> {
-        let key = storage::connection_key(connection_id);
+        let connection_id = NamadaConnectionId::from_str(&connection_id.to_string()).unwrap();
+        let key = storage::connection_key(&connection_id);
         let (value, _) = self.query(key, Some(height), false)?;
         ConnectionEnd::decode_vec(&value).map_err(Error::decode)
     }
@@ -676,12 +705,10 @@ impl ChainEndpoint for AnomaChain {
             }
             let port_channel_id =
                 storage::port_channel_id(&key).map_err(|e| Error::query(e.to_string()))?;
+            let port_id = PortId::from_str(&port_channel_id.port_id.to_string()).unwrap();
+            let channel_id = ChannelId::from_str(&port_channel_id.channel_id.to_string()).unwrap();
             let channel = ChannelEnd::decode_vec(&value).map_err(Error::decode)?;
-            channels.push(IdentifiedChannelEnd::new(
-                port_channel_id.port_id.clone(),
-                port_channel_id.channel_id,
-                channel,
-            ))
+            channels.push(IdentifiedChannelEnd::new(port_id, channel_id, channel))
         }
 
         Ok(channels)
@@ -693,9 +720,9 @@ impl ChainEndpoint for AnomaChain {
         channel_id: &ChannelId,
         height: ICSHeight,
     ) -> Result<ChannelEnd, Error> {
-        let port_channel_id = PortChannelId {
-            port_id: port_id.clone(),
-            channel_id: channel_id.clone(),
+        let port_channel_id = NamadaPortChannelId {
+            port_id: NamadaPortId::from_str(&port_id.to_string()).unwrap(),
+            channel_id: NamadaChannelId::from_str(&channel_id.to_string()).unwrap(),
         };
         let key = storage::channel_key(&port_channel_id);
         let (value, _) = self.query(key, Some(height), false)?;
@@ -836,11 +863,11 @@ impl ChainEndpoint for AnomaChain {
         &self,
         request: QueryNextSequenceReceiveRequest,
     ) -> Result<Sequence, Error> {
-        let port_id = PortId::from_str(&request.port_id)
+        let port_id = NamadaPortId::from_str(&request.port_id)
             .map_err(|_| Error::query(format!("invalid port ID {}", request.port_id)))?;
-        let channel_id = ChannelId::from_str(&request.channel_id)
+        let channel_id = NamadaChannelId::from_str(&request.channel_id)
             .map_err(|_| Error::query(format!("invalid channel ID {}", request.channel_id)))?;
-        let port_channel_id = PortChannelId {
+        let port_channel_id = NamadaPortChannelId {
             port_id,
             channel_id,
         };
@@ -862,7 +889,7 @@ impl ChainEndpoint for AnomaChain {
                 let mut result: Vec<IbcEvent> = vec![];
                 for seq in &request.sequences {
                     // query first (and only) Tx that includes the event specified in the query request
-                    let events = self.query_events(cosmos::query::packet_query(&request, *seq))?;
+                    let events = self.query_events(packet_query(&request, *seq))?;
                     let events: Vec<IbcEvent> = events
                         .into_iter()
                         .filter(|e| e.event_type().as_str() == request.event_id.as_str())
@@ -881,13 +908,13 @@ impl ChainEndpoint for AnomaChain {
                 let mut response = self
                     .rt
                     .block_on(self.rpc_client.tx_search(
-                        cosmos::query::header_query(&request),
+                        header_query(&request),
                         false,
                         1,
                         1, // get only the first Tx matching the query
                         Order::Ascending,
                     ))
-                    .map_err(|e| Error::rpc(self.config.rpc_addr.clone(), e))?;
+                    .map_err(|e| Error::abci_plus_rpc(self.config.rpc_addr.clone(), e))?;
 
                 if response.txs.is_empty() {
                     return Ok(vec![]);
@@ -903,7 +930,7 @@ impl ChainEndpoint for AnomaChain {
                 let event = cosmos::query::tx::update_client_from_tx_search_response(
                     self.id(),
                     &request,
-                    tx,
+                    into_tx_response(tx),
                 );
 
                 Ok(event.into_iter().collect())
@@ -911,7 +938,7 @@ impl ChainEndpoint for AnomaChain {
 
             QueryTxRequest::Transaction(tx) => {
                 let tx_query = TxEventQuery::Applied(tx.0.to_string());
-                let events = self.query_events(Query::from(tx_query.clone()))?;
+                let events = self.query_events(AbciPlusQuery::from(tx_query.clone()))?;
                 Ok(events)
             }
         }
@@ -932,12 +959,12 @@ impl ChainEndpoint for AnomaChain {
                     let response = self
                         .rt
                         .block_on(self.rpc_client.block_search(
-                            cosmos::query::packet_query(&request, *seq),
+                            packet_query(&request, *seq),
                             1,
                             1, // there should only be a single match for this query
                             Order::Ascending,
                         ))
-                        .map_err(|e| Error::rpc(self.config.rpc_addr.clone(), e))?;
+                        .map_err(|e| Error::abci_plus_rpc(self.config.rpc_addr.clone(), e))?;
 
                     assert!(
                         response.blocks.len() <= 1,
@@ -955,14 +982,16 @@ impl ChainEndpoint for AnomaChain {
                         let response = self
                             .rt
                             .block_on(self.rpc_client.block_results(block.header.height))
-                            .map_err(|e| Error::rpc(self.config.rpc_addr.clone(), e))?;
+                            .map_err(|e| Error::abci_plus_rpc(self.config.rpc_addr.clone(), e))?;
 
                         begin_block_events.append(
                             &mut response
                                 .begin_block_events
                                 .unwrap_or_default()
                                 .into_iter()
-                                .filter_map(|ev| cosmos::filter_matching_event(ev, &request, *seq))
+                                .filter_map(|ev| {
+                                    cosmos::filter_matching_event(into_event(ev), &request, *seq)
+                                })
                                 .collect(),
                         );
 
@@ -971,7 +1000,9 @@ impl ChainEndpoint for AnomaChain {
                                 .end_block_events
                                 .unwrap_or_default()
                                 .into_iter()
-                                .filter_map(|ev| cosmos::filter_matching_event(ev, &request, *seq))
+                                .filter_map(|ev| {
+                                    cosmos::filter_matching_event(into_event(ev), &request, *seq)
+                                })
                                 .collect(),
                         );
                     }
@@ -982,7 +1013,8 @@ impl ChainEndpoint for AnomaChain {
     }
 
     fn query_host_consensus_state(&self, height: ICSHeight) -> Result<Self::ConsensusState, Error> {
-        let height = Height::try_from(height.revision_height).map_err(Error::invalid_height)?;
+        let height =
+            Height::try_from(height.revision_height).map_err(Error::abci_plus_invalid_height)?;
 
         // TODO(hu55a1n1): use the `/header` RPC endpoint instead when we move to tendermint v0.35.x
         let rpc_call = match height.value() {
@@ -992,8 +1024,12 @@ impl ChainEndpoint for AnomaChain {
         let response = self
             .rt
             .block_on(rpc_call)
-            .map_err(|e| Error::rpc(self.config.rpc_addr.clone(), e))?;
-        Ok(response.block.header.into())
+            .map_err(|e| Error::abci_plus_rpc(self.config.rpc_addr.clone(), e))?;
+        let cs = namada::ibc::clients::ics07_tendermint::consensus_state::ConsensusState::from(
+            response.block.header,
+        );
+        let consensus_state = TMConsensusState::decode_vec(&cs.encode_vec().unwrap()).unwrap();
+        Ok(consensus_state)
     }
 
     fn proven_client_state(
@@ -1001,7 +1037,8 @@ impl ChainEndpoint for AnomaChain {
         client_id: &ClientId,
         height: ICSHeight,
     ) -> Result<(AnyClientState, MerkleProof), Error> {
-        let key = storage::client_state_key(client_id);
+        let client_id = NamadaClientId::from_str(&client_id.to_string()).unwrap();
+        let key = storage::client_state_key(&client_id);
         let (value, proof) = self.query(key, Some(height), true)?;
         let client_state = AnyClientState::decode_vec(&value).map_err(Error::decode)?;
 
@@ -1013,7 +1050,8 @@ impl ChainEndpoint for AnomaChain {
         connection_id: &ConnectionId,
         height: ICSHeight,
     ) -> Result<(ConnectionEnd, MerkleProof), Error> {
-        let key = storage::connection_key(connection_id);
+        let connection_id = NamadaConnectionId::from_str(&connection_id.to_string()).unwrap();
+        let key = storage::connection_key(&connection_id);
         let (value, proof) = self.query(key, Some(height), true)?;
         let connection_end = ConnectionEnd::decode_vec(&value).map_err(Error::decode)?;
 
@@ -1029,7 +1067,12 @@ impl ChainEndpoint for AnomaChain {
         consensus_height: ICSHeight,
         height: ICSHeight,
     ) -> Result<(AnyConsensusState, MerkleProof), Error> {
-        let key = storage::consensus_state_key(client_id, consensus_height);
+        let client_id = NamadaClientId::from_str(&client_id.to_string()).unwrap();
+        let consensus_height = NamadaIcsHeight::new(
+            consensus_height.revision_number,
+            consensus_height.revision_height,
+        );
+        let key = storage::consensus_state_key(&client_id, consensus_height);
         let (value, proof) = self.query(key, Some(height), true)?;
         let consensus_state = AnyConsensusState::decode_vec(&value).map_err(Error::decode)?;
 
@@ -1045,9 +1088,9 @@ impl ChainEndpoint for AnomaChain {
         channel_id: &ChannelId,
         height: ICSHeight,
     ) -> Result<(ChannelEnd, MerkleProof), Error> {
-        let port_channel_id = PortChannelId {
-            port_id: port_id.clone(),
-            channel_id: channel_id.clone(),
+        let port_channel_id = NamadaPortChannelId {
+            port_id: NamadaPortId::from_str(&port_id.to_string()).unwrap(),
+            channel_id: NamadaChannelId::from_str(&channel_id.to_string()).unwrap(),
         };
         let key = storage::channel_key(&port_channel_id);
         let (value, proof) = self.query(key, Some(height), true)?;
@@ -1064,6 +1107,9 @@ impl ChainEndpoint for AnomaChain {
         sequence: Sequence,
         height: ICSHeight,
     ) -> Result<(Vec<u8>, MerkleProof), Error> {
+        let port_id = NamadaPortId::from_str(&port_id.to_string()).unwrap();
+        let channel_id = NamadaChannelId::from_str(&channel_id.to_string()).unwrap();
+        let sequence = NamadaSequence::from(u64::from(sequence));
         let key = match packet_type {
             PacketMsgType::Recv => storage::commitment_key(&port_id, &channel_id, sequence),
             PacketMsgType::Ack => storage::ack_key(&port_id, &channel_id, sequence),
@@ -1071,7 +1117,7 @@ impl ChainEndpoint for AnomaChain {
                 storage::receipt_key(&port_id, &channel_id, sequence)
             }
             PacketMsgType::TimeoutOrdered => {
-                let port_channel_id = PortChannelId {
+                let port_channel_id = NamadaPortChannelId {
                     port_id,
                     channel_id,
                 };
@@ -1137,6 +1183,109 @@ impl ChainEndpoint for AnomaChain {
     fn ibc_version(&self) -> Result<Option<semver::Version>, Error> {
         unimplemented!()
     }
+}
+
+fn into_response(resp: AbciPlusRpcResponse) -> Response {
+    Response {
+        code: u32::from(resp.code).into(),
+        data: Vec::<u8>::from(resp.data).into(),
+        log: tendermint::abci::Log::from(resp.log.as_ref()),
+        hash: Hash::from_str(&resp.hash.to_string()).unwrap(),
+    }
+}
+
+fn into_tx_response(resp: AbciPlusTxResponse) -> TxResponse {
+    TxResponse {
+        hash: Hash::from_str(&resp.hash.to_string()).unwrap(),
+        height: u64::from(resp.height).try_into().unwrap(),
+        index: resp.index,
+        tx_result: tendermint::abci::responses::DeliverTx {
+            code: u32::from(resp.tx_result.code).into(),
+            data: Vec::<u8>::from(resp.tx_result.data).into(),
+            log: tendermint::abci::Log::from(resp.tx_result.log.as_ref()),
+            // not used
+            info: tendermint::abci::Info::default(),
+            gas_wanted: u64::from(resp.tx_result.gas_wanted).into(),
+            gas_used: u64::from(resp.tx_result.gas_used).into(),
+            events: resp
+                .tx_result
+                .events
+                .into_iter()
+                .map(|e| into_event(e))
+                .collect(),
+            // not used
+            codespace: tendermint::abci::responses::Codespace::default(),
+        },
+        tx: Vec::<u8>::from(resp.tx).into(),
+        proof: resp.proof.map(|p| {
+            let buf = prost::Message::encode_to_vec(&p);
+            tendermint_proto::types::TxProof::decode(buf.as_slice()).unwrap()
+        }),
+    }
+}
+
+/// This is almost the same as cosmos
+fn packet_query(request: &QueryPacketEventDataRequest, seq: Sequence) -> AbciPlusQuery {
+    AbciPlusQuery::eq(
+        format!("{}.packet_src_channel", request.event_id.as_str()),
+        request.source_channel_id.to_string(),
+    )
+    .and_eq(
+        format!("{}.packet_src_port", request.event_id.as_str()),
+        request.source_port_id.to_string(),
+    )
+    .and_eq(
+        format!("{}.packet_dst_channel", request.event_id.as_str()),
+        request.destination_channel_id.to_string(),
+    )
+    .and_eq(
+        format!("{}.packet_dst_port", request.event_id.as_str()),
+        request.destination_port_id.to_string(),
+    )
+    .and_eq(
+        format!("{}.packet_sequence", request.event_id.as_str()),
+        seq.to_string(),
+    )
+}
+
+fn header_query(request: &QueryClientEventRequest) -> AbciPlusQuery {
+    AbciPlusQuery::eq(
+        format!("{}.client_id", request.event_id.as_str()),
+        request.client_id.to_string(),
+    )
+    .and_eq(
+        format!("{}.consensus_height", request.event_id.as_str()),
+        format!(
+            "{}-{}",
+            request.consensus_height.revision_number, request.consensus_height.revision_height
+        ),
+    )
+}
+
+fn into_event(event: NamadaTmEvent) -> tendermint::abci::Event {
+    use tendermint::abci::tag::{Key, Tag, Value};
+    use tendermint::abci::Event;
+
+    Event {
+        type_str: event.type_str,
+        attributes: event
+            .attributes
+            .iter()
+            .map(|tag| Tag {
+                key: Key::from_str(&tag.key.to_string()).unwrap(),
+                value: Value::from_str(&tag.value.to_string()).unwrap(),
+            })
+            .collect(),
+    }
+}
+
+fn into_ibc_event(event: NamadaIbcEvent) -> IbcEvent {
+    let height = event.height();
+    let height = ibc::Height::new(height.revision_number, height.revision_height);
+    let namada_abci_event = NamadaTmEvent::try_from(event).unwrap();
+    let abci_event = into_event(namada_abci_event);
+    // The event should exist
+    ibc::events::from_tx_response_event(height, &abci_event).unwrap()
 }
 
 /// TODO make it public in Anoma

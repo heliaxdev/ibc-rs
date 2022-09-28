@@ -8,7 +8,7 @@ use ibc_relayer::{
     chain::{
         handle::{BaseChainHandle, ChainHandle},
         runtime::ChainRuntime,
-        AnomaChain, CosmosSdkChain,
+        NamadaChain, CosmosSdkChain,
     },
     config::Config,
 };
@@ -66,7 +66,7 @@ pub fn spawn_chain_runtime_generic<Chain: ChainHandle>(
 
     let rt = Arc::new(TokioRuntime::new().unwrap());
     let handle = if chain_id.as_str().starts_with("anoma-") {
-        ChainRuntime::<AnomaChain>::spawn::<Chain>(chain_config, rt).map_err(Error::relayer)?
+        ChainRuntime::<NamadaChain>::spawn::<Chain>(chain_config, rt).map_err(Error::relayer)?
     } else {
         ChainRuntime::<CosmosSdkChain>::spawn::<Chain>(chain_config, rt).map_err(Error::relayer)?
     };

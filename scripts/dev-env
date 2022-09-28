@@ -19,9 +19,9 @@ if [ -z "$2" ]; then
   missing "CHAIN_0_ID"
 fi
 
-if [ -z "$3" ]; then
-  missing "CHAIN_1_ID"
-fi
+#if [ -z "$3" ]; then
+#  missing "CHAIN_1_ID"
+#fi
 
 
 if [ "$#" -gt 4 ]; then
