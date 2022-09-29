@@ -8,18 +8,18 @@ use crate::signer::Signer;
 // Needed in mocks.
 pub fn default_consensus_params() -> consensus::Params {
     consensus::Params {
-        block: block::Size {
+        block: Some(block::Size {
             max_bytes: 22020096,
             max_gas: -1,
-        },
-        evidence: evidence::Params {
+        }),
+        evidence: Some(evidence::Params {
             max_age_num_blocks: 100000,
             max_age_duration: Duration::new(48 * 3600, 0),
             max_bytes: 0,
-        },
-        validator: consensus::params::ValidatorParams {
+        }),
+        validator: Some(consensus::params::ValidatorParams {
             pub_key_types: vec![Algorithm::Ed25519],
-        },
+        }),
         version: Some(consensus::params::VersionParams::default()),
     }
 }
