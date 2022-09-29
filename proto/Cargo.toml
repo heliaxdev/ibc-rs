@@ -29,8 +29,7 @@ tonic = { version = "0.6", optional = true, default-features = false }
 serde = { version = "1.0", default-features = false }
 
 [dependencies.tendermint-proto]
-git = "https://github.com/heliaxdev/tendermint-rs"
-rev = "95c52476bc37927218374f94ac8e2a19bd35bec9"
+version = "0.23.5"
 default-features = false
 
 [features]
