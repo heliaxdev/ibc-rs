@@ -18,10 +18,11 @@ exclude = [
     "proto-compiler"
 ]
 
-# [patch.crates-io]
-# tendermint              = { git = "https://github.com/informalsystems/tendermint-rs", branch = "v0.23.x" }
-# tendermint-rpc          = { git = "https://github.com/informalsystems/tendermint-rs", branch = "v0.23.x" }
-# tendermint-proto        = { git = "https://github.com/informalsystems/tendermint-rs", branch = "v0.23.x" }
-# tendermint-light-client = { git = "https://github.com/informalsystems/tendermint-rs", branch = "v0.23.x" }
-# tendermint-light-client-verifier = { git = "https://github.com/informalsystems/tendermint-rs", branch = "v0.23.x" }
-# tendermint-testgen      = { git = "https://github.com/informalsystems/tendermint-rs", branch = "v0.23.x" }
+[patch.crates-io]
+# patched to a commit on the `eth-bridge-integration` branch of our fork
+tendermint              = {git = "https://github.com/heliaxdev/tendermint-rs", rev = "bc0b6ac47b3bfc1ee8b944341b654b867b3b5d0b"}
+tendermint-rpc          = {git = "https://github.com/heliaxdev/tendermint-rs", rev = "bc0b6ac47b3bfc1ee8b944341b654b867b3b5d0b"}
+tendermint-proto        = {git = "https://github.com/heliaxdev/tendermint-rs", rev = "bc0b6ac47b3bfc1ee8b944341b654b867b3b5d0b"}
+tendermint-light-client = {git = "https://github.com/heliaxdev/tendermint-rs", rev = "bc0b6ac47b3bfc1ee8b944341b654b867b3b5d0b"}
+tendermint-light-client-verifier = {git = "https://github.com/heliaxdev/tendermint-rs", rev = "bc0b6ac47b3bfc1ee8b944341b654b867b3b5d0b"}
+tendermint-testgen      = {git = "https://github.com/heliaxdev/tendermint-rs", rev = "bc0b6ac47b3bfc1ee8b944341b654b867b3b5d0b"}

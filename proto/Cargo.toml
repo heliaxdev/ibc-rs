@@ -32,8 +32,7 @@ schemars    = { version = "0.8", optional = true }
 base64      = { version = "0.13", default-features = false, features = ["alloc"] }
 
 [dependencies.tendermint-proto]
-git = "https://github.com/heliaxdev/tendermint-rs"
-branch = "bat/abciplus"
+version          = "=0.23.6"
 default-features = false
 
 [features]
