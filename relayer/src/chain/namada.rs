@@ -149,15 +149,12 @@ impl NamadaChain {
             .expect("Signing of the wrapper transaction should not fail");
         let tx_bytes = tx.to_bytes();
 
-        //let wrapper_hash = hash_tx(&wrapper_tx.try_to_vec().unwrap()).to_string();
-        let decrypted_hash = wrapper_tx.tx_hash;
-
         let mut response = self
             .rt
             .block_on(self.rpc_client.broadcast_tx_sync(tx_bytes.into()))
             .map_err(|e| Error::abci_plus_rpc(self.config.rpc_addr.clone(), e))?;
-        // overwrite the tx hash in the response
-        response.hash = decrypted_hash.into();
+        // overwrite the tx decrypted hash for the tx query
+        response.hash = wrapper_tx.tx_hash.into();
         Ok(into_response(response))
     }
 
@@ -232,7 +229,8 @@ impl NamadaChain {
 
         let proof = if prove {
             let p = response.proof.ok_or_else(Error::empty_response_proof)?;
-            let mp = convert_tm_to_ics_merkle_proof(&p).map_err(Error::namada_ics23)?;
+            let mp = convert_tm_to_ics_merkle_proof(&p).map_err(Error::abci_plus_ics23)?;
+            // convert MerkleProof to one of the base tendermint
             let buf = prost::Message::encode_to_vec(&mp);
             let proof = MerkleProof::decode(buf.as_slice()).unwrap();
             Some(proof)
@@ -328,8 +326,8 @@ impl ChainEndpoint for NamadaChain {
 
     fn bootstrap(config: ChainConfig, rt: Arc<TokioRuntime>) -> Result<Self, Error> {
         let rpc_addr = Url::from_str(&config.rpc_addr.to_string()).unwrap();
-        let rpc_client =
-            HttpClient::new(rpc_addr).map_err(|e| Error::abci_plus_rpc(config.rpc_addr.clone(), e))?;
+        let rpc_client = HttpClient::new(rpc_addr)
+            .map_err(|e| Error::abci_plus_rpc(config.rpc_addr.clone(), e))?;
 
         // not used in Anoma, but the trait requires KeyRing
         let keybase = KeyRing::new(config.key_store_type, &config.account_prefix, &config.id)
@@ -407,6 +405,8 @@ impl ChainEndpoint for NamadaChain {
                 e,
             )
         })?;
+
+        // TODO Namada health check
 
         self.rt
             .block_on(self.rpc_client.tx_search(
@@ -1185,6 +1185,7 @@ impl ChainEndpoint for NamadaChain {
     }
 }
 
+/// Convert a broadcast response to one of the base Tendermint
 fn into_response(resp: AbciPlusRpcResponse) -> Response {
     Response {
         code: u32::from(resp.code).into(),
@@ -1194,6 +1195,7 @@ fn into_response(resp: AbciPlusRpcResponse) -> Response {
     }
 }
 
+/// Convert a transaction response to one of the base Tendermint
 fn into_tx_response(resp: AbciPlusTxResponse) -> TxResponse {
     TxResponse {
         hash: Hash::from_str(&resp.hash.to_string()).unwrap(),
@@ -1224,7 +1226,8 @@ fn into_tx_response(resp: AbciPlusTxResponse) -> TxResponse {
     }
 }
 
-/// This is almost the same as cosmos
+/// Get a query for the new Tendermint
+/// This is the same as cosmos
 fn packet_query(request: &QueryPacketEventDataRequest, seq: Sequence) -> AbciPlusQuery {
     AbciPlusQuery::eq(
         format!("{}.packet_src_channel", request.event_id.as_str()),
@@ -1248,6 +1251,8 @@ fn packet_query(request: &QueryPacketEventDataRequest, seq: Sequence) -> AbciPlu
     )
 }
 
+/// Get a query for the new Tendermint
+/// This is the same as cosmos
 fn header_query(request: &QueryClientEventRequest) -> AbciPlusQuery {
     AbciPlusQuery::eq(
         format!("{}.client_id", request.event_id.as_str()),
@@ -1262,6 +1267,7 @@ fn header_query(request: &QueryClientEventRequest) -> AbciPlusQuery {
     )
 }
 
+/// Convert a Tendermint event to one of the base Tendermint
 fn into_event(event: NamadaTmEvent) -> tendermint::abci::Event {
     use tendermint::abci::tag::{Key, Tag, Value};
     use tendermint::abci::Event;
@@ -1279,6 +1285,7 @@ fn into_event(event: NamadaTmEvent) -> tendermint::abci::Event {
     }
 }
 
+/// Convert an IbcEvent to one of the base Tendermint
 fn into_ibc_event(event: NamadaIbcEvent) -> IbcEvent {
     let height = event.height();
     let height = ibc::Height::new(height.revision_number, height.revision_height);

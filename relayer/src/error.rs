@@ -5,14 +5,14 @@ use core::time::Duration;
 use flex_error::{define_error, DisplayOnly, TraceClone, TraceError};
 use http::uri::InvalidUri;
 use humantime::format_duration;
+use namada::tendermint::Error as AbciPlusTmError;
+use namada::tendermint_proto::Error as AbciPlusTmProtoError;
 use prost::{DecodeError, EncodeError};
 use tendermint::Error as TendermintError;
-use namada::tendermint::Error as AbciPlusTmError;
 use tendermint_light_client::{
     components::io::IoError as LightClientIoError, errors::Error as LightClientError,
 };
 use tendermint_proto::Error as TendermintProtoError;
-use namada::tendermint_proto::Error as AbciPlusTmProtoError;
 use tendermint_rpc::endpoint::abci_query::AbciQuery;
 use tendermint_rpc::endpoint::broadcast::tx_commit::TxResult;
 use tendermint_rpc::Error as TendermintRpcError;
@@ -23,7 +23,6 @@ use tonic::{
     Status as GrpcStatus,
 };
 
-use namada::ibc::core::ics23_commitment::error as namada_commitment_error;
 use ibc::{
     clients::ics07_tendermint::error as tendermint_error,
     core::{
@@ -35,6 +34,7 @@ use ibc::{
     proofs::ProofError,
     relayer::ics18_relayer::error as relayer_error,
 };
+use namada::ibc::core::ics23_commitment::error as abciplus_commitment_error;
 
 use crate::chain::cosmos::version;
 use crate::chain::cosmos::GENESIS_MAX_BYTES_MAX_FRACTION;
@@ -530,8 +530,8 @@ define_error! {
             { query: AbciPlusQuery }
             |e| { format!("ABCI query returned an error: {:?}", e.query) },
 
-        NamadaIcs23
-            [ namada_commitment_error::Error ]
+        AbciPlusIcs23
+            [ abciplus_commitment_error::Error ]
             |_| { "ICS 23 error" },
 
         AbciPlusHealthCheckJsonRpc

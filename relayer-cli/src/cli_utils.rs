@@ -8,7 +8,7 @@ use ibc_relayer::{
     chain::{
         handle::{BaseChainHandle, ChainHandle},
         runtime::ChainRuntime,
-        NamadaChain, CosmosSdkChain,
+        CosmosSdkChain, NamadaChain,
     },
     config::Config,
 };

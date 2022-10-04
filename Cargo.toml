@@ -9,8 +9,8 @@ members = [
     "relayer-rest",
     "telemetry",
     "proto",
-    #"tools/integration-test",
-    #"tools/test-framework",
+    "tools/integration-test",
+    "tools/test-framework",
 ]
 
 exclude = [

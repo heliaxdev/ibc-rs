@@ -12,7 +12,7 @@ use ibc::core::ics24_host::identifier::ChainId;
 
 use crate::util::lock::RwArc;
 use crate::{
-    chain::{handle::ChainHandle, runtime::ChainRuntime, NamadaChain, CosmosSdkChain},
+    chain::{handle::ChainHandle, runtime::ChainRuntime, CosmosSdkChain, NamadaChain},
     config::Config,
     error::Error as RelayerError,
 };
