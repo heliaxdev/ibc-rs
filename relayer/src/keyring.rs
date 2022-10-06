@@ -386,7 +386,9 @@ pub fn sign_message(
             let sign_msg = Message::from_slice(hash.as_slice()).unwrap();
             let key = SecretKey::from_slice(private_key_bytes.as_slice())
                 .map_err(Error::invalid_key_raw)?;
-            let (_, sig_bytes) = s.sign_ecdsa_recoverable(&sign_msg, &key).serialize_compact();
+            let (_, sig_bytes) = s
+                .sign_ecdsa_recoverable(&sign_msg, &key)
+                .serialize_compact();
             Ok(sig_bytes.to_vec())
         }
         AddressType::Cosmos | AddressType::Ethermint { .. } => {
