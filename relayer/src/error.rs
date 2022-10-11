@@ -508,11 +508,14 @@ define_error! {
                 )
             },
 
-        NamadaWallet
+        NamadaWalletNotInitialized
+            |_| { "Namada wallet has not been initialized yet" },
+
+        NamadaKeyPairNotFound
             [ TraceError<namada_apps::wallet::FindKeyError> ]
             |_| { "The keypair was not found" },
 
-        NamadaAddress
+        NamadaAddressNotFound
             { alias: String }
             |e| { format!("The address was not found for {}", e.alias) },
 

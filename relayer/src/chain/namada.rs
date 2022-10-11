@@ -4,28 +4,23 @@ use core::str::FromStr;
 use core::time::Duration;
 use std::path::Path;
 use std::thread;
-use std::time::Instant;
 
-use borsh::BorshDeserialize;
 use ibc::clients::ics07_tendermint::client_state::{AllowUpdate, ClientState};
 use ibc::clients::ics07_tendermint::consensus_state::ConsensusState as TMConsensusState;
 use ibc::clients::ics07_tendermint::header::Header as TmHeader;
-use ibc::core::ics02_client::client_consensus::QueryClientEventRequest;
 use ibc::core::ics02_client::client_consensus::{AnyConsensusState, AnyConsensusStateWithHeight};
 use ibc::core::ics02_client::client_state::IdentifiedAnyClientState;
 use ibc::core::ics02_client::client_state::{AnyClientState, ClientState as Ics02ClientState};
 use ibc::core::ics03_connection::connection::{ConnectionEnd, IdentifiedConnectionEnd};
-use ibc::core::ics04_channel::channel::QueryPacketEventDataRequest;
 use ibc::core::ics04_channel::channel::{ChannelEnd, IdentifiedChannelEnd};
 use ibc::core::ics04_channel::packet::{PacketMsgType, Sequence};
 use ibc::core::ics23_commitment::commitment::CommitmentPrefix;
 use ibc::core::ics24_host::identifier::{ChainId, ChannelId, ClientId, ConnectionId, PortId};
 use ibc::events::IbcEvent;
 use ibc::query::QueryBlockRequest;
-use ibc::query::{QueryTxHash, QueryTxRequest};
+use ibc::query::QueryTxRequest;
 use ibc::signer::Signer;
 use ibc::Height as ICSHeight;
-use ibc_proto::google::protobuf::Any;
 use ibc_proto::ibc::core::channel::v1::{
     PacketState, QueryChannelClientStateRequest, QueryChannelsRequest,
     QueryConnectionChannelsRequest, QueryNextSequenceReceiveRequest,
@@ -38,30 +33,20 @@ use ibc_proto::ibc::core::connection::v1::{
     QueryClientConnectionsRequest, QueryConnectionsRequest,
 };
 use namada::ibc::core::ics04_channel::packet::Sequence as NamadaSequence;
-use namada::ibc::core::ics23_commitment::merkle::convert_tm_to_ics_merkle_proof;
 use namada::ibc::core::ics24_host::identifier::{
     ChannelId as NamadaChannelId, ClientId as NamadaClientId, ConnectionId as NamadaConnectionId,
     PortChannelId as NamadaPortChannelId, PortId as NamadaPortId,
 };
-use namada::ibc::events::{from_tx_response_event, IbcEvent as NamadaIbcEvent};
 use namada::ibc::Height as NamadaIcsHeight;
 use namada::ledger::ibc::handler::commitment_prefix;
 use namada::ledger::ibc::storage;
 use namada::ledger::storage::{MerkleTree, Sha256Hasher};
-use namada::proto::Tx;
-use namada::tendermint::abci::tag::Tag;
-use namada::tendermint::abci::Code;
 use namada::tendermint::abci::Event as NamadaTmEvent;
 use namada::tendermint::block::Height;
 use namada::tendermint_proto::Protobuf as AbciPlusProtobuf;
 use namada::types::address::{Address, InternalAddress};
-use namada::types::storage::{Epoch, Key, KeySeg, PrefixValue};
-use namada::types::token::Amount;
-use namada::types::transaction::{Fee, GasLimit, WrapperTx};
-use namada_apps::client::rpc::TxEventQuery;
-use namada_apps::node::ledger::rpc::Path as NamadaPath;
+use namada::types::storage::{Key, KeySeg, PrefixValue};
 use namada_apps::wallet::Wallet;
-use namada_apps::wasm_loader;
 use prost::Message;
 use tendermint::abci::transaction::Hash;
 use tendermint::Time;
@@ -70,7 +55,7 @@ use tendermint_light_client::types::PeerId;
 use tendermint_proto::Protobuf;
 use tendermint_rpc::endpoint::broadcast::tx_sync::Response;
 use tendermint_rpc::endpoint::tx::Response as TxResponse;
-use tendermint_rpc_abciplus::endpoint::broadcast::tx_sync::Response as AbciPlusRpcResponse;
+use tendermint_rpc::query::Query;
 use tendermint_rpc_abciplus::endpoint::tx::Response as AbciPlusTxResponse;
 use tendermint_rpc_abciplus::query::{EventType as AbciPlusEventType, Query as AbciPlusQuery};
 use tendermint_rpc_abciplus::{Client, HttpClient, Order, Url};
@@ -93,228 +78,15 @@ use crate::light_client::Verified;
 use super::{ChainEndpoint, HealthCheck};
 
 const BASE_WALLET_DIR: &str = "namada_wallet";
-const WASM_DIR: &str = "namada_wasm";
-const WASM_FILE: &str = "tx_ibc.wasm";
-const FEE_TOKEN: &str = "XAN";
-const DEFAULT_MAX_GAS: u64 = 100_000;
-const WAIT_BACKOFF: Duration = Duration::from_millis(300);
+
+pub mod query;
+pub mod tx;
 
 pub struct NamadaChain {
     config: ChainConfig,
     rpc_client: HttpClient,
     rt: Arc<TokioRuntime>,
     keybase: KeyRing,
-}
-
-impl NamadaChain {
-    fn send_tx(&mut self, proto_msg: &Any) -> Result<Response, Error> {
-        let tx_code = wasm_loader::read_wasm(WASM_DIR, WASM_FILE);
-        let mut tx_data = vec![];
-        prost::Message::encode(proto_msg, &mut tx_data)
-            .map_err(|e| Error::protobuf_encode(String::from("Message"), e))?;
-        let tx = Tx::new(tx_code, Some(tx_data));
-
-        // the wallet should exist because it's confirmed when the bootstrap
-        let wallet_path = Path::new(BASE_WALLET_DIR).join(self.config.id.to_string());
-        let mut wallet = Wallet::load(&wallet_path).expect("wallet has not been initialized yet");
-        let secret_key = wallet
-            .find_key(&self.config.key_name)
-            .map_err(Error::namada_wallet)?;
-        let signed_tx = tx.sign(&secret_key);
-
-        let fee_token_addr = wallet
-            .find_address(FEE_TOKEN)
-            .ok_or_else(|| Error::namada_address(FEE_TOKEN.to_string()))?
-            .clone();
-
-        // TODO estimate the gas cost?
-
-        let gas_limit = GasLimit::from(self.config.max_gas.unwrap_or(DEFAULT_MAX_GAS));
-
-        let epoch = self.query_epoch()?;
-        let wrapper_tx = WrapperTx::new(
-            Fee {
-                amount: Amount::from(0),
-                token: fee_token_addr,
-            },
-            &secret_key,
-            epoch,
-            gas_limit,
-            signed_tx,
-            Default::default(),
-        );
-
-        let tx = wrapper_tx
-            .sign(&secret_key)
-            .expect("Signing of the wrapper transaction should not fail");
-        let tx_bytes = tx.to_bytes();
-
-        let mut response = self
-            .rt
-            .block_on(self.rpc_client.broadcast_tx_sync(tx_bytes.into()))
-            .map_err(|e| Error::abci_plus_rpc(self.config.rpc_addr.clone(), e))?;
-        // overwrite the tx decrypted hash for the tx query
-        response.hash = wrapper_tx.tx_hash.into();
-        Ok(into_response(response))
-    }
-
-    fn wait_for_block_commits(
-        &self,
-        mut tx_sync_results: Vec<TxSyncResult>,
-    ) -> Result<Vec<TxSyncResult>, Error> {
-        let start_time = Instant::now();
-        loop {
-            if cosmos::wait::all_tx_results_found(&tx_sync_results) {
-                return Ok(tx_sync_results);
-            }
-
-            let elapsed = start_time.elapsed();
-            if elapsed > self.config.rpc_timeout {
-                return Err(Error::tx_no_confirmation());
-            }
-
-            thread::sleep(WAIT_BACKOFF);
-
-            for TxSyncResult { response, events } in tx_sync_results.iter_mut() {
-                if cosmos::wait::empty_event_present(events) {
-                    // If the transaction failed, replace the events with an error,
-                    // so that we don't attempt to resolve the transaction later on.
-                    if response.code.value() != 0 {
-                        *events = vec![IbcEvent::ChainError(format!(
-                            "deliver_tx on chain {} for Tx hash {} reports error: code={:?}, log={:?}",
-                            self.id(), response.hash, response.code, response.log
-                        ))];
-                    // Otherwise, try to resolve transaction hash to the corresponding events.
-                    } else if let Ok(events_per_tx) =
-                        self.query_txs(QueryTxRequest::Transaction(QueryTxHash(response.hash)))
-                    {
-                        // If we get events back, progress was made, so we replace the events
-                        // with the new ones. in both cases we will check in the next iteration
-                        // whether or not the transaction was fully committed.
-                        if !events_per_tx.is_empty() {
-                            *events = events_per_tx;
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    fn query(
-        &self,
-        key: Key,
-        height: Option<ICSHeight>,
-        prove: bool,
-    ) -> Result<(Vec<u8>, Option<MerkleProof>), Error> {
-        let path = NamadaPath::Value(key);
-        let height = match height {
-            Some(h) => {
-                Some(Height::try_from(h.revision_height).map_err(Error::abci_plus_invalid_height)?)
-            }
-            None => None,
-        };
-        let data = vec![];
-        let response = self
-            .rt
-            .block_on(
-                self.rpc_client
-                    .abci_query(Some(path.into()), data, height, prove),
-            )
-            .map_err(|e| Error::abci_plus_rpc(self.config.rpc_addr.clone(), e))?;
-        let value = match response.code {
-            Code::Ok => response.value,
-            Code::Err(1) => vec![],
-            Code::Err(_) => return Err(Error::abci_plus_query(response)),
-        };
-
-        let proof = if prove {
-            let p = response.proof.ok_or_else(Error::empty_response_proof)?;
-            let mp = convert_tm_to_ics_merkle_proof(&p).map_err(Error::abci_plus_ics23)?;
-            // convert MerkleProof to one of the base tendermint
-            let buf = prost::Message::encode_to_vec(&mp);
-            let proof = MerkleProof::decode(buf.as_slice()).unwrap();
-            Some(proof)
-        } else {
-            None
-        };
-
-        Ok((value, proof))
-    }
-
-    fn query_prefix(&self, prefix: Key) -> Result<Vec<PrefixValue>, Error> {
-        let path = NamadaPath::Prefix(prefix);
-        let data = vec![];
-        let response = self
-            .rt
-            .block_on(
-                self.rpc_client
-                    .abci_query(Some(path.into()), data, None, false),
-            )
-            .map_err(|e| Error::abci_plus_rpc(self.config.rpc_addr.clone(), e))?;
-        match response.code {
-            Code::Ok => {
-                Vec::<PrefixValue>::try_from_slice(&response.value[..]).map_err(Error::borsh_decode)
-            }
-            Code::Err(c) if c == 1 => Ok(vec![]),
-            _ => Err(Error::abci_plus_query(response)),
-        }
-    }
-
-    fn query_epoch(&self) -> Result<Epoch, Error> {
-        let path = NamadaPath::Epoch;
-        let data = vec![];
-        let response = self
-            .rt
-            .block_on(
-                self.rpc_client
-                    .abci_query(Some(path.into()), data, None, false),
-            )
-            .map_err(|e| Error::abci_plus_rpc(self.config.rpc_addr.clone(), e))?;
-        match response.code {
-            Code::Ok => Epoch::try_from_slice(&response.value[..]).map_err(Error::borsh_decode),
-            Code::Err(_) => Err(Error::abci_plus_query(response)),
-        }
-    }
-
-    fn query_events(&self, query: AbciPlusQuery) -> Result<Vec<IbcEvent>, Error> {
-        let blocks = &self
-            .rt
-            .block_on(self.rpc_client.block_search(query, 1, 1, Order::Ascending))
-            .map_err(|e| Error::abci_plus_rpc(self.config.rpc_addr.clone(), e))?
-            .blocks;
-        let block = &blocks
-            .get(0)
-            .ok_or_else(|| Error::query("No block was found".to_string()))?
-            .block;
-        let response = self
-            .rt
-            .block_on(self.rpc_client.block_results(block.header.height))
-            .map_err(|e| Error::abci_plus_rpc(self.config.rpc_addr.clone(), e))?;
-
-        let events = response
-            .end_block_events
-            .ok_or_else(|| Error::query("No transaction result was found".to_string()))?;
-        let mut ibc_events = vec![];
-        for event in &events {
-            let height = NamadaIcsHeight::new(self.id().version(), u64::from(response.height));
-            match from_tx_response_event(height, event) {
-                Some(e) => ibc_events.push(into_ibc_event(e)),
-                None => {
-                    let success_code_tag = Tag {
-                        key: "code".parse().expect("The tag parsing shouldn't fail"),
-                        value: "0".parse().expect("The tag parsing shouldn't fail"),
-                    };
-                    if !event.attributes.contains(&success_code_tag) {
-                        ibc_events.push(IbcEvent::ChainError(format!(
-                            "The transaction was invalid: event {:?}",
-                            event
-                        )));
-                    }
-                }
-            }
-        }
-        Ok(ibc_events)
-    }
 }
 
 impl ChainEndpoint for NamadaChain {
@@ -335,10 +107,11 @@ impl ChainEndpoint for NamadaChain {
 
         // check if the wallet has been set up for this relayer
         let wallet_path = Path::new(BASE_WALLET_DIR).join(config.id.to_string());
-        let mut wallet = Wallet::load(&wallet_path).expect("wallet has not been initialized yet");
+        let mut wallet =
+            Wallet::load(&wallet_path).ok_or_else(Error::namada_wallet_not_initialized)?;
         wallet
             .find_key(&config.key_name)
-            .map_err(Error::namada_wallet)?;
+            .map_err(Error::namada_key_pair_not_found)?;
 
         // overwrite the proof spec
         // TODO: query the proof spec
@@ -460,8 +233,7 @@ impl ChainEndpoint for NamadaChain {
 
         let events: Vec<IbcEvent> = tx_sync_results
             .into_iter()
-            .map(|el| el.events)
-            .flatten()
+            .flat_map(|el| el.events)
             .collect();
         let mut dedup_events = vec![];
         for event in events {
@@ -494,7 +266,7 @@ impl ChainEndpoint for NamadaChain {
         let wallet = Wallet::load(&wallet_path).expect("wallet has not been initialized yet");
         let address = wallet
             .find_address(&self.config.key_name)
-            .ok_or_else(|| Error::namada_address(self.config.key_name.clone()))?;
+            .ok_or_else(|| Error::namada_address_not_found(self.config.key_name.clone()))?;
 
         Ok(Signer::new(address))
     }
@@ -721,7 +493,7 @@ impl ChainEndpoint for NamadaChain {
         height: ICSHeight,
     ) -> Result<ChannelEnd, Error> {
         let port_channel_id = NamadaPortChannelId {
-            port_id: NamadaPortId::from_str(&port_id.to_string()).unwrap(),
+            port_id: NamadaPortId::from_str(port_id.as_ref()).unwrap(),
             channel_id: NamadaChannelId::from_str(&channel_id.to_string()).unwrap(),
         };
         let key = storage::channel_key(&port_channel_id);
@@ -889,7 +661,7 @@ impl ChainEndpoint for NamadaChain {
                 let mut result: Vec<IbcEvent> = vec![];
                 for seq in &request.sequences {
                     // query first (and only) Tx that includes the event specified in the query request
-                    let events = self.query_events(packet_query(&request, *seq))?;
+                    let events = self.query_events(cosmos::query::packet_query(&request, *seq))?;
                     let events: Vec<IbcEvent> = events
                         .into_iter()
                         .filter(|e| e.event_type().as_str() == request.event_id.as_str())
@@ -905,10 +677,13 @@ impl ChainEndpoint for NamadaChain {
 
             QueryTxRequest::Client(request) => {
                 crate::time!("query_txs: single client update event");
+                let query =
+                    AbciPlusQuery::from_str(&cosmos::query::header_query(&request).to_string())
+                        .unwrap();
                 let mut response = self
                     .rt
                     .block_on(self.rpc_client.tx_search(
-                        header_query(&request),
+                        query,
                         false,
                         1,
                         1, // get only the first Tx matching the query
@@ -937,8 +712,8 @@ impl ChainEndpoint for NamadaChain {
             }
 
             QueryTxRequest::Transaction(tx) => {
-                let tx_query = TxEventQuery::Applied(tx.0.to_string());
-                let events = self.query_events(AbciPlusQuery::from(tx_query.clone()))?;
+                let query = Query::default().and_eq("applied.hash", tx.0.to_string());
+                let events = self.query_events(query)?;
                 Ok(events)
             }
         }
@@ -956,10 +731,14 @@ impl ChainEndpoint for NamadaChain {
                 let mut end_block_events: Vec<IbcEvent> = vec![];
 
                 for seq in &request.sequences {
+                    let query = AbciPlusQuery::from_str(
+                        &cosmos::query::packet_query(&request, *seq).to_string(),
+                    )
+                    .unwrap();
                     let response = self
                         .rt
                         .block_on(self.rpc_client.block_search(
-                            packet_query(&request, *seq),
+                            query,
                             1,
                             1, // there should only be a single match for this query
                             Order::Ascending,
@@ -1089,7 +868,7 @@ impl ChainEndpoint for NamadaChain {
         height: ICSHeight,
     ) -> Result<(ChannelEnd, MerkleProof), Error> {
         let port_channel_id = NamadaPortChannelId {
-            port_id: NamadaPortId::from_str(&port_id.to_string()).unwrap(),
+            port_id: NamadaPortId::from_str(port_id.as_ref()).unwrap(),
             channel_id: NamadaChannelId::from_str(&channel_id.to_string()).unwrap(),
         };
         let key = storage::channel_key(&port_channel_id);
@@ -1185,16 +964,6 @@ impl ChainEndpoint for NamadaChain {
     }
 }
 
-/// Convert a broadcast response to one of the base Tendermint
-fn into_response(resp: AbciPlusRpcResponse) -> Response {
-    Response {
-        code: u32::from(resp.code).into(),
-        data: Vec::<u8>::from(resp.data).into(),
-        log: tendermint::abci::Log::from(resp.log.as_ref()),
-        hash: Hash::from_str(&resp.hash.to_string()).unwrap(),
-    }
-}
-
 /// Convert a transaction response to one of the base Tendermint
 fn into_tx_response(resp: AbciPlusTxResponse) -> TxResponse {
     TxResponse {
@@ -1209,12 +978,7 @@ fn into_tx_response(resp: AbciPlusTxResponse) -> TxResponse {
             info: tendermint::abci::Info::default(),
             gas_wanted: u64::from(resp.tx_result.gas_wanted).into(),
             gas_used: u64::from(resp.tx_result.gas_used).into(),
-            events: resp
-                .tx_result
-                .events
-                .into_iter()
-                .map(|e| into_event(e))
-                .collect(),
+            events: resp.tx_result.events.into_iter().map(into_event).collect(),
             // not used
             codespace: tendermint::abci::responses::Codespace::default(),
         },
@@ -1224,47 +988,6 @@ fn into_tx_response(resp: AbciPlusTxResponse) -> TxResponse {
             tendermint_proto::types::TxProof::decode(buf.as_slice()).unwrap()
         }),
     }
-}
-
-/// Get a query for the new Tendermint
-/// This is the same as cosmos
-fn packet_query(request: &QueryPacketEventDataRequest, seq: Sequence) -> AbciPlusQuery {
-    AbciPlusQuery::eq(
-        format!("{}.packet_src_channel", request.event_id.as_str()),
-        request.source_channel_id.to_string(),
-    )
-    .and_eq(
-        format!("{}.packet_src_port", request.event_id.as_str()),
-        request.source_port_id.to_string(),
-    )
-    .and_eq(
-        format!("{}.packet_dst_channel", request.event_id.as_str()),
-        request.destination_channel_id.to_string(),
-    )
-    .and_eq(
-        format!("{}.packet_dst_port", request.event_id.as_str()),
-        request.destination_port_id.to_string(),
-    )
-    .and_eq(
-        format!("{}.packet_sequence", request.event_id.as_str()),
-        seq.to_string(),
-    )
-}
-
-/// Get a query for the new Tendermint
-/// This is the same as cosmos
-fn header_query(request: &QueryClientEventRequest) -> AbciPlusQuery {
-    AbciPlusQuery::eq(
-        format!("{}.client_id", request.event_id.as_str()),
-        request.client_id.to_string(),
-    )
-    .and_eq(
-        format!("{}.consensus_height", request.event_id.as_str()),
-        format!(
-            "{}-{}",
-            request.consensus_height.revision_number, request.consensus_height.revision_height
-        ),
-    )
 }
 
 /// Convert a Tendermint event to one of the base Tendermint
@@ -1283,16 +1006,6 @@ fn into_event(event: NamadaTmEvent) -> tendermint::abci::Event {
             })
             .collect(),
     }
-}
-
-/// Convert an IbcEvent to one of the base Tendermint
-fn into_ibc_event(event: NamadaIbcEvent) -> IbcEvent {
-    let height = event.height();
-    let height = ibc::Height::new(height.revision_number, height.revision_height);
-    let namada_abci_event = NamadaTmEvent::try_from(event).unwrap();
-    let abci_event = into_event(namada_abci_event);
-    // The event should exist
-    ibc::events::from_tx_response_event(height, &abci_event).unwrap()
 }
 
 /// TODO make it public in Anoma
