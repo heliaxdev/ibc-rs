@@ -3,7 +3,7 @@ use abscissa_core::Runnable;
 
 use ibc::core::ics24_host::identifier::{ChainId, ConnectionId};
 use ibc_proto::ibc::core::connection::v1::QueryConnectionsRequest;
-use ibc_relayer::chain::handle::{ChainHandle, BaseChainHandle};
+use ibc_relayer::chain::handle::{BaseChainHandle, ChainHandle};
 
 use crate::conclude::Output;
 use crate::prelude::*;

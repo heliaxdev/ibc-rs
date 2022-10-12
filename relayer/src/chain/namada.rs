@@ -77,6 +77,7 @@ use crate::light_client::Verified;
 
 use super::{ChainEndpoint, HealthCheck};
 
+pub const NAMADA_CHAIN_PREFIX: &str = "namada-";
 const BASE_WALLET_DIR: &str = "namada_wallet";
 
 pub mod query;

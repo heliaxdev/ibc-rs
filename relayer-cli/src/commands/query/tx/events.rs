@@ -13,7 +13,7 @@ use ibc::query::{QueryTxHash, QueryTxRequest};
 
 use ibc_relayer::chain::handle::{BaseChainHandle, ChainHandle};
 use ibc_relayer::chain::runtime::ChainRuntime;
-use ibc_relayer::chain::{CosmosSdkChain, NamadaChain};
+use ibc_relayer::chain::{CosmosSdkChain, NamadaChain, NAMADA_CHAIN_PREFIX};
 
 use crate::conclude::{exit_with_unrecoverable_error, Output};
 use crate::error::Error;
@@ -45,7 +45,7 @@ impl Runnable for QueryTxEventsCmd {
         };
 
         let rt = Arc::new(TokioRuntime::new().unwrap());
-        let chain = if self.chain_id.as_str().starts_with("anoma-") {
+        let chain = if self.chain_id.as_str().starts_with(NAMADA_CHAIN_PREFIX) {
             ChainRuntime::<NamadaChain>::spawn::<BaseChainHandle>(chain_config.clone(), rt)
                 .unwrap_or_else(exit_with_unrecoverable_error)
         } else {

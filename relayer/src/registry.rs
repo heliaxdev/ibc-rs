@@ -12,7 +12,10 @@ use ibc::core::ics24_host::identifier::ChainId;
 
 use crate::util::lock::RwArc;
 use crate::{
-    chain::{handle::ChainHandle, runtime::ChainRuntime, CosmosSdkChain, NamadaChain},
+    chain::{
+        handle::ChainHandle, runtime::ChainRuntime, CosmosSdkChain, NamadaChain,
+        NAMADA_CHAIN_PREFIX,
+    },
     config::Config,
     error::Error as RelayerError,
 };
@@ -164,7 +167,7 @@ pub fn spawn_chain_runtime<Chain: ChainHandle>(
         .cloned()
         .ok_or_else(|| SpawnError::missing_chain_config(chain_id.clone()))?;
 
-    let handle = if chain_id.as_str().starts_with("anoma-") {
+    let handle = if chain_id.as_str().starts_with(NAMADA_CHAIN_PREFIX) {
         ChainRuntime::<NamadaChain>::spawn(chain_config, rt).map_err(SpawnError::relayer)?
     } else {
         ChainRuntime::<CosmosSdkChain>::spawn(chain_config, rt).map_err(SpawnError::relayer)?

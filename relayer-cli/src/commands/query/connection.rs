@@ -7,7 +7,7 @@ use ibc::core::{
     ics24_host::identifier::{ChainId, PortChannelId},
 };
 use ibc_proto::ibc::core::channel::v1::QueryConnectionChannelsRequest;
-use ibc_relayer::chain::handle::{ChainHandle, BaseChainHandle};
+use ibc_relayer::chain::handle::{BaseChainHandle, ChainHandle};
 
 use crate::conclude::Output;
 use crate::error::Error;

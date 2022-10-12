@@ -3,7 +3,7 @@ use core::convert::TryFrom;
 
 use tokio::runtime::Runtime as TokioRuntime;
 
-pub use self::namada::NamadaChain;
+pub use self::namada::{NamadaChain, NAMADA_CHAIN_PREFIX};
 pub use cosmos::CosmosSdkChain;
 
 use ibc::core::ics02_client::client_consensus::{

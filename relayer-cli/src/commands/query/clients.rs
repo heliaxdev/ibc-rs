@@ -5,7 +5,7 @@ use serde::Serialize;
 use ibc::core::ics02_client::client_state::ClientState;
 use ibc::core::ics24_host::identifier::{ChainId, ClientId};
 use ibc_proto::ibc::core::client::v1::QueryClientStatesRequest;
-use ibc_relayer::chain::handle::{ChainHandle, BaseChainHandle};
+use ibc_relayer::chain::handle::{BaseChainHandle, ChainHandle};
 
 use crate::conclude::Output;
 use crate::error::Error;

@@ -44,12 +44,12 @@ impl NamadaChain {
         let mut wallet = Wallet::load(&wallet_path).expect("wallet has not been initialized yet");
         let secret_key = wallet
             .find_key(&self.config.key_name)
-            .map_err(Error::namada_wallet)?;
+            .map_err(Error::namada_key_pair_not_found)?;
         let signed_tx = tx.sign(&secret_key);
 
         let fee_token_addr = wallet
             .find_address(FEE_TOKEN)
-            .ok_or_else(|| Error::namada_address(FEE_TOKEN.to_string()))?
+            .ok_or_else(|| Error::namada_address_not_found(FEE_TOKEN.to_string()))?
             .clone();
 
         // TODO estimate the gas cost?

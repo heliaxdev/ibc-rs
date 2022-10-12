@@ -11,7 +11,7 @@ use ibc::query::QueryTxRequest;
 use ibc::Height;
 use ibc_proto::ibc::core::client::v1::QueryConsensusStatesRequest;
 use ibc_proto::ibc::core::connection::v1::QueryClientConnectionsRequest;
-use ibc_relayer::chain::handle::{ChainHandle, BaseChainHandle};
+use ibc_relayer::chain::handle::{BaseChainHandle, ChainHandle};
 
 use crate::conclude::Output;
 
