@@ -68,9 +68,10 @@ pub fn sign_tx(
 }
 
 fn encode_key_bytes(key: &KeyEntry) -> Result<Vec<u8>, Error> {
-    let mut pk_buf = Vec::new();
+    let pk_bytes = key.public_key.public_key.serialize().to_vec();
 
-    prost::Message::encode(&key.public_key.public_key.to_bytes(), &mut pk_buf)
+    let mut pk_buf = Vec::new();
+    prost::Message::encode(&pk_bytes, &mut pk_buf)
         .map_err(|e| Error::protobuf_encode("PublicKey".into(), e))?;
 
     Ok(pk_buf)
