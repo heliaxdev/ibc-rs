@@ -25,7 +25,7 @@ use super::super::ChainEndpoint;
 use super::NamadaChain;
 use super::BASE_WALLET_DIR;
 
-const FEE_TOKEN: &str = "XAN";
+const FEE_TOKEN: &str = "NAM";
 const WASM_DIR: &str = "namada_wasm";
 const WASM_FILE: &str = "tx_ibc.wasm";
 const DEFAULT_MAX_GAS: u64 = 100_000;
