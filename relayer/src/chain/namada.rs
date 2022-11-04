@@ -40,7 +40,8 @@ use namada::ibc::core::ics24_host::identifier::{
 use namada::ibc::Height as NamadaIcsHeight;
 use namada::ledger::ibc::handler::commitment_prefix;
 use namada::ledger::ibc::storage;
-use namada::ledger::storage::{MerkleTree, Sha256Hasher};
+use namada::ledger::storage::ics23_specs::ibc_proof_specs;
+use namada::ledger::storage::Sha256Hasher;
 use namada::tendermint::abci::Event as NamadaTmEvent;
 use namada::tendermint::block::Height;
 use namada::tendermint_proto::Protobuf as AbciPlusProtobuf;
@@ -117,9 +118,7 @@ impl ChainEndpoint for NamadaChain {
         // overwrite the proof spec
         // TODO: query the proof spec
         let config = ChainConfig {
-            proof_specs: MerkleTree::<Sha256Hasher>::default()
-                .ibc_proof_specs()
-                .into(),
+            proof_specs: ibc_proof_specs::<Sha256Hasher>().into(),
             ..config
         };
 

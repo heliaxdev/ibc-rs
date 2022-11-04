@@ -7,6 +7,7 @@ use http::uri::InvalidUri;
 use humantime::format_duration;
 use namada::tendermint::Error as AbciPlusTmError;
 use namada::tendermint_proto::Error as AbciPlusTmProtoError;
+use namada::ledger::queries::tm::Error as NamadaQueryError;
 use prost::{DecodeError, EncodeError};
 use tendermint::Error as TendermintError;
 use tendermint_light_client::{
@@ -16,7 +17,6 @@ use tendermint_proto::Error as TendermintProtoError;
 use tendermint_rpc::endpoint::abci_query::AbciQuery;
 use tendermint_rpc::endpoint::broadcast::tx_commit::TxResult;
 use tendermint_rpc::Error as TendermintRpcError;
-use tendermint_rpc_abciplus::endpoint::abci_query::AbciQuery as AbciPlusQuery;
 use tendermint_rpc_abciplus::Error as TendermintAbciPlusRpcError;
 use tonic::{
     metadata::errors::InvalidMetadataValue, transport::Error as TransportError,
@@ -519,6 +519,10 @@ define_error! {
             { alias: String }
             |e| { format!("The address was not found for {}", e.alias) },
 
+        NamadaQuery
+            { error: NamadaQueryError }
+            |e|  { format!("Namada ABCI query returned an error: {:?}", e.error) },
+
         // for different tendermint-rs
         AbciPlusRpc
             { url: tendermint_rpc::Url }
@@ -528,10 +532,6 @@ define_error! {
         AbciPlusInvalidHeight
             [ AbciPlusTmError ]
             |_| { "invalid height" },
-
-        AbciPlusQuery
-            { query: AbciPlusQuery }
-            |e| { format!("ABCI query returned an error: {:?}", e.query) },
 
         AbciPlusIcs23
             [ abciplus_commitment_error::Error ]

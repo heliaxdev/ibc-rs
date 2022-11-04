@@ -24,12 +24,12 @@ telemetry = ["ibc-telemetry"]
 ibc           = { version = "0.14.0", path = "../modules" }
 ibc-proto     = { version = "0.17.1", path = "../proto" }
 ibc-telemetry = { version = "0.14.0", path = "../telemetry", optional = true }
-# need to use the same ibc as Anoma
-ibc-abciplus           = { package = "ibc", git = "https://github.com/heliaxdev/ibc-rs", branch = "yuji/v0.14.0_abciplus" }
-ibc-proto-abciplus     = { package = "ibc-proto", git = "https://github.com/heliaxdev/ibc-rs", branch = "yuji/v0.14.0_abciplus" }
+# need to use the same ibc as Namada
+ibc-abciplus       = { package = "ibc", version = "0.14.0" }
+ibc-proto-abciplus = { package = "ibc-proto", version = "0.17.1" }
 
-namada_apps = { git = "https://github.com/anoma/namada", branch = "yuji/ibc_e2e_test_tm37" }
-namada = { git = "https://github.com/anoma/namada", branch = "yuji/ibc_e2e_test_tm37", default-features = false, features = ["ibc-mocks"] }
+namada_apps = { git = "https://github.com/anoma/namada", branch = "ibc-integration" }
+namada = { git = "https://github.com/anoma/namada", branch = "ibc-integration", default-features = false, features = ["abciplus", "ibc-mocks"] }
 
 subtle-encoding = "0.5"
 humantime-serde = "1.1.1"
@@ -71,10 +71,10 @@ regex = "1.5.5"
 moka = "0.8.2"
 borsh = "0.9.3"
 # for Namada
-tendermint-rpc-abciplus = { package = "tendermint-rpc", git = "https://github.com/heliaxdev/tendermint-rs", branch = "yuji/abciplus_rpc_params", features = ["http-client", "websocket-client"] }
-tendermint-light-client-abciplus = { package = "tendermint-light-client", git = "https://github.com/heliaxdev/tendermint-rs", branch = "yuji/abciplus_rpc_params", features = ["rpc-client", "secp256k1", "unstable"] }
-tendermint-light-client-verifier-abciplus = { package = "tendermint-light-client-verifier", git = "https://github.com/heliaxdev/tendermint-rs", branch = "yuji/abciplus_rpc_params" }
-tendermint-proto-abciplus = { package = "tendermint-proto", git = "https://github.com/heliaxdev/tendermint-rs", branch = "yuji/abciplus_rpc_params" }
+tendermint-rpc-abciplus = { package = "tendermint-rpc", version = "0.23.6", features = ["http-client", "websocket-client"] }
+tendermint-light-client-abciplus = { package = "tendermint-light-client", version = "0.23.6", features = ["rpc-client", "secp256k1", "unstable"] }
+tendermint-light-client-verifier-abciplus = { package = "tendermint-light-client-verifier", version = "0.23.6" }
+tendermint-proto-abciplus = { package = "tendermint-proto", version = "0.23.6" }
 ics23 = "0.7.0"
 
 [dependencies.num-bigint]
@@ -86,34 +86,38 @@ version = "0.4.0"
 features = ["num-bigint", "serde"]
 
 [dependencies.tendermint]
-version = "=0.23.6"
+git = "https://github.com/informalsystems/tendermint-rs"
+tag = "v0.23.6"
 features = ["secp256k1"]
 
 [dependencies.tendermint-rpc]
-version = "=0.23.6"
+git = "https://github.com/informalsystems/tendermint-rs"
+tag = "v0.23.6"
 features = ["http-client", "websocket-client"]
 
 [dependencies.tendermint-light-client]
-version = "=0.23.6"
+git = "https://github.com/informalsystems/tendermint-rs"
+tag = "v0.23.6"
 default-features = false
 features = ["rpc-client", "secp256k1", "unstable"]
 
 [dependencies.tendermint-light-client-verifier]
-version = "=0.23.6"
+git = "https://github.com/informalsystems/tendermint-rs"
+tag = "v0.23.6"
 default-features = false
 
 [dependencies.tendermint-proto]
-version = "=0.23.6"
+git = "https://github.com/informalsystems/tendermint-rs"
+tag = "v0.23.6"
 
 [dev-dependencies]
-# need to use the same tendermint-rs version
 ibc = { version = "0.14.0", path = "../modules", features = ["mocks"] }
-ibc-abciplus = { package = "ibc", git = "https://github.com/heliaxdev/ibc-rs", branch = "yuji/v0.14.0_abciplus", features = ["mocks"] }
+ibc-abciplus = { package = "ibc", version = "0.14.0", features = ["mocks"] }
 serial_test = "0.6.0"
 env_logger = "0.9.0"
 tracing-subscriber = { version = "0.3.11", features = ["fmt", "env-filter", "json"] }
 test-log = { version = "0.2.10", features = ["trace"] }
 
 # Needed for generating (synthetic) light blocks.
-tendermint-testgen = { version = "=0.23.6" }
-tendermint-testgen-abciplus = { package = "tendermint-testgen", git = "https://github.com/heliaxdev/tendermint-rs", branch = "yuji/abciplus_rpc_params" }
+tendermint-testgen = { git = "https://github.com/informalsystems/tendermint-rs", tag = "v0.23.6" }
+tendermint-testgen-abciplus = { package = "tendermint-testgen", version = "0.23.6" }

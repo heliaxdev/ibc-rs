@@ -1,17 +1,15 @@
 use core::str::FromStr;
 
-use borsh::BorshDeserialize;
 use ibc::events::IbcEvent;
 use ibc::Height as ICSHeight;
 use ibc_proto::ibc::core::commitment::v1::MerkleProof;
 use namada::ibc::core::ics23_commitment::merkle::convert_tm_to_ics_merkle_proof;
 use namada::ibc::events::{from_tx_response_event, IbcEvent as NamadaIbcEvent};
 use namada::ibc::Height as NamadaIcsHeight;
+use namada::ledger::queries::RPC;
 use namada::tendermint::abci::tag::Tag;
-use namada::tendermint::abci::{Code, Event as NamadaTmEvent};
-use namada::tendermint::block::Height;
-use namada::types::storage::{Epoch, Key, PrefixValue};
-use namada_apps::node::ledger::rpc::Path as NamadaPath;
+use namada::tendermint::abci::Event as NamadaTmEvent;
+use namada::types::storage::{BlockHeight, Epoch, Key, PrefixValue};
 use prost::Message;
 use tendermint_rpc::query::Query;
 use tendermint_rpc_abciplus::query::Query as AbciPlusQuery;
@@ -29,26 +27,15 @@ impl NamadaChain {
         height: Option<ICSHeight>,
         prove: bool,
     ) -> Result<(Vec<u8>, Option<MerkleProof>), Error> {
-        let path = NamadaPath::Value(key);
-        let height = match height {
-            Some(h) => {
-                Some(Height::try_from(h.revision_height).map_err(Error::abci_plus_invalid_height)?)
-            }
-            None => None,
-        };
-        let data = vec![];
+        let height = height
+            .map(|h| BlockHeight::try_from(h.revision_height).expect("height conversion failed"));
         let response = self
             .rt
             .block_on(
-                self.rpc_client
-                    .abci_query(Some(path.into()), data, height, prove),
+                RPC.shell()
+                    .storage_value(&self.rpc_client, None, height, prove, &key),
             )
-            .map_err(|e| Error::abci_plus_rpc(self.config.rpc_addr.clone(), e))?;
-        let value = match response.code {
-            Code::Ok => response.value,
-            Code::Err(1) => vec![],
-            Code::Err(_) => return Err(Error::abci_plus_query(response)),
-        };
+            .map_err(Error::namada_query)?;
 
         let proof = if prove {
             let p = response.proof.ok_or_else(Error::empty_response_proof)?;
@@ -61,42 +48,24 @@ impl NamadaChain {
             None
         };
 
-        Ok((value, proof))
+        Ok((response.data, proof))
     }
 
     pub fn query_prefix(&self, prefix: Key) -> Result<Vec<PrefixValue>, Error> {
-        let path = NamadaPath::Prefix(prefix);
-        let data = vec![];
         let response = self
             .rt
             .block_on(
-                self.rpc_client
-                    .abci_query(Some(path.into()), data, None, false),
+                RPC.shell()
+                    .storage_prefix(&self.rpc_client, None, None, false, &prefix),
             )
-            .map_err(|e| Error::abci_plus_rpc(self.config.rpc_addr.clone(), e))?;
-        match response.code {
-            Code::Ok => {
-                Vec::<PrefixValue>::try_from_slice(&response.value[..]).map_err(Error::borsh_decode)
-            }
-            Code::Err(c) if c == 1 => Ok(vec![]),
-            _ => Err(Error::abci_plus_query(response)),
-        }
+            .map_err(Error::namada_query)?;
+        Ok(response.data)
     }
 
     pub fn query_epoch(&self) -> Result<Epoch, Error> {
-        let path = NamadaPath::Epoch;
-        let data = vec![];
-        let response = self
-            .rt
-            .block_on(
-                self.rpc_client
-                    .abci_query(Some(path.into()), data, None, false),
-            )
-            .map_err(|e| Error::abci_plus_rpc(self.config.rpc_addr.clone(), e))?;
-        match response.code {
-            Code::Ok => Epoch::try_from_slice(&response.value[..]).map_err(Error::borsh_decode),
-            Code::Err(_) => Err(Error::abci_plus_query(response)),
-        }
+        self.rt
+            .block_on(RPC.shell().epoch(&self.rpc_client))
+            .map_err(Error::namada_query)
     }
 
     pub fn query_events(&self, query: Query) -> Result<Vec<IbcEvent>, Error> {

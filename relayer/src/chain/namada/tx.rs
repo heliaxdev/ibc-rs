@@ -33,7 +33,7 @@ const WAIT_BACKOFF: Duration = Duration::from_millis(300);
 
 impl NamadaChain {
     pub fn send_tx(&mut self, proto_msg: &Any) -> Result<Response, Error> {
-        let tx_code = wasm_loader::read_wasm(WASM_DIR, WASM_FILE);
+        let tx_code = wasm_loader::read_wasm(WASM_DIR, WASM_FILE).expect("Loading IBC wasm failed");
         let mut tx_data = vec![];
         prost::Message::encode(proto_msg, &mut tx_data)
             .map_err(|e| Error::protobuf_encode(String::from("Message"), e))?;
