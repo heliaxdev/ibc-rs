@@ -75,10 +75,11 @@ impl NamadaChain {
             .block_on(self.rpc_client.block_search(query, 1, 1, Order::Ascending))
             .map_err(|e| Error::abci_plus_rpc(self.config.rpc_addr.clone(), e))?
             .blocks;
-        let block = &blocks
-            .get(0)
-            .ok_or_else(|| Error::query("No block was found".to_string()))?
-            .block;
+        let block = match blocks.get(0) {
+            Some(b) => &b.block,
+            // transaction is not committed yet
+            None => return Ok(vec![]),
+        };
         let response = self
             .rt
             .block_on(self.rpc_client.block_results(block.header.height))

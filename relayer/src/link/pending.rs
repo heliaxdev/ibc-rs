@@ -120,14 +120,18 @@ impl<Chain: ChainHandle> PendingTxs<Chain> {
     fn check_tx_events(&self, tx_hashes: &TxHashes) -> Result<Option<Vec<IbcEvent>>, RelayerError> {
         let mut all_events = Vec::new();
         for hash in &tx_hashes.0 {
-            let mut events = self
+            let events = self
                 .chain
                 .query_txs(QueryTxRequest::Transaction(QueryTxHash(*hash)))?;
 
             if events.is_empty() {
                 return Ok(None);
             } else {
-                all_events.append(&mut events)
+                for event in events {
+                    if !all_events.contains(&event) {
+                        all_events.push(event);
+                    }
+                }
             }
         }
         Ok(Some(all_events))
