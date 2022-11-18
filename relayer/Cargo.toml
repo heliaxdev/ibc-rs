@@ -28,8 +28,8 @@ ibc-telemetry = { version = "0.14.0", path = "../telemetry", optional = true }
 ibc-abciplus       = { package = "ibc", version = "0.14.0" }
 ibc-proto-abciplus = { package = "ibc-proto", version = "0.17.1" }
 
-namada_apps = { git = "https://github.com/anoma/namada", branch = "ibc-integration" }
-namada = { git = "https://github.com/anoma/namada", branch = "ibc-integration", default-features = false, features = ["abciplus", "ibc-mocks"] }
+namada_apps = { git = "https://github.com/anoma/namada", rev = "fe7d5ad214bbf0421138dd934ed0c9f9f249cbff" }
+namada = { git = "https://github.com/anoma/namada", rev = "fe7d5ad214bbf0421138dd934ed0c9f9f249cbff", default-features = false, features = ["abciplus", "ibc-mocks"] }
 
 subtle-encoding = "0.5"
 humantime-serde = "1.1.1"

@@ -530,9 +530,9 @@ checksum = "904dfeac50f3cdaba28fc6f57fdcddb75f49ed61346676a78c4ffe55877802fd"
 
 [[package]]
 name = "base64ct"
-version = "1.5.0"
+version = "1.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dea908e7347a8c64e378c17e30ef880ad73e3b4498346b055c2c00ea342f3179"
+checksum = "b645a089122eccb6111b4f81cbc1a49f5900ac4666bb93ac027feaecf15607bf"
 
 [[package]]
 name = "bech32"
@@ -3643,7 +3643,7 @@ dependencies = [
 [[package]]
 name = "namada"
 version = "0.9.0"
-source = "git+https://github.com/anoma/namada?branch=ibc-integration#fe7d5ad214bbf0421138dd934ed0c9f9f249cbff"
+source = "git+https://github.com/anoma/namada?rev=fe7d5ad214bbf0421138dd934ed0c9f9f249cbff#fe7d5ad214bbf0421138dd934ed0c9f9f249cbff"
 dependencies = [
  "ark-bls12-381",
  "ark-ec",
@@ -3698,7 +3698,7 @@ dependencies = [
 [[package]]
 name = "namada_apps"
 version = "0.9.0"
-source = "git+https://github.com/anoma/namada?branch=ibc-integration#fe7d5ad214bbf0421138dd934ed0c9f9f249cbff"
+source = "git+https://github.com/anoma/namada?rev=fe7d5ad214bbf0421138dd934ed0c9f9f249cbff#fe7d5ad214bbf0421138dd934ed0c9f9f249cbff"
 dependencies = [
  "ark-serialize",
  "ark-std",
@@ -3772,7 +3772,7 @@ dependencies = [
 [[package]]
 name = "namada_proof_of_stake"
 version = "0.9.0"
-source = "git+https://github.com/anoma/namada?branch=ibc-integration#fe7d5ad214bbf0421138dd934ed0c9f9f249cbff"
+source = "git+https://github.com/anoma/namada?rev=fe7d5ad214bbf0421138dd934ed0c9f9f249cbff#fe7d5ad214bbf0421138dd934ed0c9f9f249cbff"
 dependencies = [
  "borsh",
  "derivative",
@@ -4737,9 +4737,9 @@ dependencies = [
 
 [[package]]
 name = "rayon-core"
-version = "1.9.2"
+version = "1.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9f51245e1e62e1f1629cbfec37b5793bbabcaeb90f30e94d2ba03564687353e4"
+checksum = "258bcdb5ac6dad48491bb2992db6b7cf74878b0384908af124823d118c99683f"
 dependencies = [
  "crossbeam-channel 0.5.4",
  "crossbeam-deque",
