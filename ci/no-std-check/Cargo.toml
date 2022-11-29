@@ -7,9 +7,9 @@ resolver = "2"
 [dependencies]
 ibc = { path = "../../modules", default-features = false }
 ibc-proto = { path = "../../proto", default-features = false }
-tendermint = {git = "https://github.com/heliaxdev/tendermint-rs", rev = "e6c684731f21bffd89886d3e91074b96aee074ba", default-features = false }
-tendermint-proto = {git = "https://github.com/heliaxdev/tendermint-rs", rev = "e6c684731f21bffd89886d3e91074b96aee074ba", default-features = false }
-tendermint-light-client-verifier = {git = "https://github.com/heliaxdev/tendermint-rs", rev = "e6c684731f21bffd89886d3e91074b96aee074ba", default-features = false }
+tendermint = {git = "https://github.com/heliaxdev/tendermint-rs", rev = "9694eaa42799eec2af2af06a15c7cd779f48fb9c", default-features = false }
+tendermint-proto = {git = "https://github.com/heliaxdev/tendermint-rs", rev = "9694eaa42799eec2af2af06a15c7cd779f48fb9c", default-features = false }
+tendermint-light-client-verifier = {git = "https://github.com/heliaxdev/tendermint-rs", rev = "9694eaa42799eec2af2af06a15c7cd779f48fb9c", default-features = false }
 
 sp-core = { version = "5.0.0", default-features = false, optional = true }
 sp-io = { version = "5.0.0", default-features = false, optional = true }
