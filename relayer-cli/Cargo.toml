@@ -60,22 +60,27 @@ dialoguer = "0.10.0"
 console = "0.15.0"
 
 [dependencies.tendermint-proto]
-version = "=0.23.6"
+git = "https://github.com/heliaxdev/tendermint-rs"
+rev = "e6c684731f21bffd89886d3e91074b96aee074ba"
 
 [dependencies.tendermint]
-version = "=0.23.6"
+git = "https://github.com/heliaxdev/tendermint-rs"
+rev = "e6c684731f21bffd89886d3e91074b96aee074ba"
 features = ["secp256k1"]
 
 [dependencies.tendermint-rpc]
-version = "=0.23.6"
+git = "https://github.com/heliaxdev/tendermint-rs"
+rev = "e6c684731f21bffd89886d3e91074b96aee074ba"
 features = ["http-client", "websocket-client"]
 
 [dependencies.tendermint-light-client]
-version = "=0.23.6"
+git = "https://github.com/heliaxdev/tendermint-rs"
+rev = "e6c684731f21bffd89886d3e91074b96aee074ba"
 features = ["unstable"]
 
 [dependencies.tendermint-light-client-verifier]
-version = "=0.23.6"
+git = "https://github.com/heliaxdev/tendermint-rs"
+rev = "e6c684731f21bffd89886d3e91074b96aee074ba"
 
 [dependencies.abscissa_core]
 version = "=0.6.0"

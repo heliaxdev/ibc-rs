@@ -73,24 +73,29 @@ version = "0.4.0"
 features = ["num-bigint", "serde"]
 
 [dependencies.tendermint]
-version = "=0.23.6"
+git = "https://github.com/heliaxdev/tendermint-rs"
+rev = "e6c684731f21bffd89886d3e91074b96aee074ba"
 features = ["secp256k1"]
 
 [dependencies.tendermint-rpc]
-version = "=0.23.6"
+git = "https://github.com/heliaxdev/tendermint-rs"
+rev = "e6c684731f21bffd89886d3e91074b96aee074ba"
 features = ["http-client", "websocket-client"]
 
 [dependencies.tendermint-light-client]
-version = "=0.23.6"
+git = "https://github.com/heliaxdev/tendermint-rs"
+rev = "e6c684731f21bffd89886d3e91074b96aee074ba"
 default-features = false
 features = ["rpc-client", "secp256k1", "unstable"]
 
 [dependencies.tendermint-light-client-verifier]
-version = "=0.23.6"
+git = "https://github.com/heliaxdev/tendermint-rs"
+rev = "e6c684731f21bffd89886d3e91074b96aee074ba"
 default-features = false
 
 [dependencies.tendermint-proto]
-version = "=0.23.6"
+git = "https://github.com/heliaxdev/tendermint-rs"
+rev = "e6c684731f21bffd89886d3e91074b96aee074ba"
 
 [dev-dependencies]
 ibc = { version = "0.14.0", path = "../modules", features = ["mocks"] }
@@ -100,4 +105,4 @@ tracing-subscriber = { version = "0.3.11", features = ["fmt", "env-filter", "jso
 test-log = { version = "0.2.10", features = ["trace"] }
 
 # Needed for generating (synthetic) light blocks.
-tendermint-testgen = { version = "=0.23.6" }
+tendermint-testgen = { git = "https://github.com/heliaxdev/tendermint-rs", rev = "e6c684731f21bffd89886d3e91074b96aee074ba" }
