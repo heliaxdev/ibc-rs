@@ -27,7 +27,7 @@ function init_relayer_balance() {
   local suffix=$1
   local ledger_addr=$2
 
-  local base_dir=${DATA_DIR}/namada-${suffix}/.anoma
+  local base_dir=${DATA_DIR}/namada-${suffix}/.namada
 
   local cnt=0
   local cnt_max=$((${INITIAL_BALANCE} / 1000))

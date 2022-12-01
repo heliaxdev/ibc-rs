@@ -97,7 +97,7 @@ function init_network() {
   local genesis_path=$2
 
   mkdir -p ${DATA_DIR}/namada-${suffix}
-  ANOMA_BASE_DIR=${DATA_DIR}/namada-${suffix}/.anoma \
+  NAMADA_BASE_DIR=${DATA_DIR}/namada-${suffix}/.namada \
   ${NAMADAC} utils init-network \
     --unsafe-dont-encrypt \
     --genesis-path ${genesis_path} \
@@ -112,10 +112,10 @@ function copy_wasm() {
   local suffix=$1
   local chain_id=$2
 
-  local base_dir=${DATA_DIR}/namada-${suffix}/.anoma
+  local base_dir=${DATA_DIR}/namada-${suffix}/.namada
 
-  cp ${NAMADA_DIR}/wasm/checksums.json ${base_dir}/${chain_id}/setup/validator-0/.anoma/${chain_id}/wasm/
-  cp ${NAMADA_DIR}/wasm/*.wasm ${base_dir}/${chain_id}/setup/validator-0/.anoma/${chain_id}/wasm/
+  cp ${NAMADA_DIR}/wasm/checksums.json ${base_dir}/${chain_id}/setup/validator-0/.namada/${chain_id}/wasm/
+  cp ${NAMADA_DIR}/wasm/*.wasm ${base_dir}/${chain_id}/setup/validator-0/.namada/${chain_id}/wasm/
   cp ${NAMADA_DIR}/wasm/checksums.json ${base_dir}/${chain_id}/wasm/
   cp ${NAMADA_DIR}/wasm/*.wasm ${base_dir}/${chain_id}/wasm/
 }
@@ -130,7 +130,7 @@ function init_relayer_acc() {
   local chain_id=$2
   local ledger_addr=$2
 
-  local base_dir=${DATA_DIR}/namada-${suffix}/.anoma
+  local base_dir=${DATA_DIR}/namada-${suffix}/.namada
   local wasm_dir=${IBC_RS_DIR}/namada_wasm
   local wallet_dir=${IBC_RS_DIR}/namada_wallet/${chain_id}
 
@@ -155,7 +155,7 @@ chain_id_a=$(init_network "a" ${GENESIS_PATH_A})
 
 copy_wasm "a" ${chain_id_a}
 
-${NAMADAN} --base-dir ${DATA_DIR}/namada-a/.anoma/${chain_id_a}/setup/validator-0/.anoma/ \
+${NAMADAN} --base-dir ${DATA_DIR}/namada-a/.namada/${chain_id_a}/setup/validator-0/.namada/ \
   --mode validator \
   ledger run > ${DATA_DIR}/namada-a/namada.log 2>&1 &
 echo "Namada chain A's PID = $!"
@@ -170,7 +170,7 @@ chain_id_b=$(init_network "b" ${GENESIS_PATH_B})
 copy_wasm "b" ${chain_id_b}
 
 
-${NAMADAN} --base-dir ${DATA_DIR}/namada-b/.anoma/${chain_id_b}/setup/validator-0/.anoma/ \
+${NAMADAN} --base-dir ${DATA_DIR}/namada-b/.namada/${chain_id_b}/setup/validator-0/.namada/ \
   --mode validator \
   ledger run > ${DATA_DIR}/namada-b/namada.log 2>&1 &
 echo "Namada chain B's PID = $!"
