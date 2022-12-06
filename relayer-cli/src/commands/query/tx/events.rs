@@ -13,7 +13,7 @@ use ibc::query::{QueryTxHash, QueryTxRequest};
 
 use ibc_relayer::chain::handle::{BaseChainHandle, ChainHandle};
 use ibc_relayer::chain::runtime::ChainRuntime;
-use ibc_relayer::chain::{CosmosSdkChain, NamadaChain, NAMADA_CHAIN_PREFIX};
+use ibc_relayer::chain::{CosmosSdkChain, NamadaChain};
 
 use crate::conclude::{exit_with_unrecoverable_error, Output};
 use crate::error::Error;
@@ -27,6 +27,9 @@ pub struct QueryTxEventsCmd {
 
     #[clap(required = true, help = "transaction hash to query")]
     hash: String,
+
+    #[clap(short = 't', long, help = "the chain type")]
+    chain_type: Option<String>,
 }
 
 // cargo run --bin hermes -- query tx events ibc-0 B8E78AD83810239E21863AC7B5FC4F99396ABB39EB534F721EEF43A4979C2821
@@ -45,12 +48,13 @@ impl Runnable for QueryTxEventsCmd {
         };
 
         let rt = Arc::new(TokioRuntime::new().unwrap());
-        let chain = if self.chain_id.as_str().starts_with(NAMADA_CHAIN_PREFIX) {
-            ChainRuntime::<NamadaChain>::spawn::<BaseChainHandle>(chain_config.clone(), rt)
-                .unwrap_or_else(exit_with_unrecoverable_error)
-        } else {
-            ChainRuntime::<CosmosSdkChain>::spawn::<BaseChainHandle>(chain_config.clone(), rt)
-                .unwrap_or_else(exit_with_unrecoverable_error)
+        let chain = match &self.chain_type {
+            Some(t) if t == "namada" => {
+                ChainRuntime::<NamadaChain>::spawn::<BaseChainHandle>(chain_config.clone(), rt)
+                    .unwrap_or_else(exit_with_unrecoverable_error)
+            }
+            _ => ChainRuntime::<CosmosSdkChain>::spawn::<BaseChainHandle>(chain_config.clone(), rt)
+                .unwrap_or_else(exit_with_unrecoverable_error),
         };
 
         let res = Hash::from_str(self.hash.as_str())

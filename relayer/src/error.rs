@@ -5,9 +5,9 @@ use core::time::Duration;
 use flex_error::{define_error, DisplayOnly, TraceClone, TraceError};
 use http::uri::InvalidUri;
 use humantime::format_duration;
+use namada::ledger::queries::tm::Error as NamadaQueryError;
 use namada::tendermint::Error as AbciPlusTmError;
 use namada::tendermint_proto::Error as AbciPlusTmProtoError;
-use namada::ledger::queries::tm::Error as NamadaQueryError;
 use prost::{DecodeError, EncodeError};
 use tendermint::Error as TendermintError;
 use tendermint_light_client::{

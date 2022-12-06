@@ -305,10 +305,36 @@ impl fmt::Display for AddressType {
     }
 }
 
+/// It defines the chain type.
+/// Currently Cosmos and Namada are supported.
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ChainType {
+    Cosmos,
+    Namada,
+}
+
+impl Default for ChainType {
+    fn default() -> Self {
+        ChainType::Cosmos
+    }
+}
+
+impl fmt::Display for ChainType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ChainType::Cosmos => write!(f, "cosmos"),
+            ChainType::Namada => write!(f, "namada"),
+        }
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct ChainConfig {
     pub id: ChainId,
+    #[serde(default)]
+    pub chain_type: ChainType,
     pub rpc_addr: tendermint_rpc::Url,
     pub websocket_addr: tendermint_rpc::Url,
     pub grpc_addr: tendermint_rpc::Url,
