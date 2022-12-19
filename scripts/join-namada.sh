@@ -132,7 +132,8 @@ cp -f ${NAMADA_DIR}/wasm/checksums.json ${IBC_RS_DIR}/namada_wasm
 cp -f ${NAMADA_DIR}/wasm/tx_ibc.*.wasm ${IBC_RS_DIR}/namada_wasm
 
 # Copy wallets
-mkdir -p ${IBC_RS_DIR}/namada_wallet
+mkdir -p ${IBC_RS_DIR}/namada_wallet/${CHAIN_ID_A}
+mkdir -p ${IBC_RS_DIR}/namada_wallet/${CHAIN_ID_B}
 cp ${BASE_DIR_A}/${CHAIN_ID_A}/wallet.toml ${IBC_RS_DIR}/namada_wallet/${CHAIN_ID_A}
 cp ${BASE_DIR_B}/${CHAIN_ID_B}/wallet.toml ${IBC_RS_DIR}/namada_wallet/${CHAIN_ID_B}
 
