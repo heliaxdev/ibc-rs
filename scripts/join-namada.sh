@@ -51,6 +51,7 @@ port = 3001
 
 [[chains]]
 id = '_CHAIN_ID_A_'
+chain_type = 'namada'
 rpc_addr = 'http://127.0.0.1:26657'
 grpc_addr = 'http://127.0.0.1:9090'
 websocket_addr = 'ws://127.0.0.1:26657/websocket'
@@ -68,6 +69,7 @@ trust_threshold = { numerator = '1', denominator = '3' }
 
 [[chains]]
 id = '_CHAIN_ID_B_'
+chain_type = 'namada'
 rpc_addr = 'http://127.0.0.1:27657'
 grpc_addr = 'http://127.0.0.1:9090'
 websocket_addr = 'ws://127.0.0.1:27657/websocket'
