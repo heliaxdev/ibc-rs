@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # This script executes ibc-rs' E2E test for Namada locally
-# `make build` and `make build-wasm-scripts` on Namada directory in advance
+# `make build-release` and `make build-wasm-scripts` on Namada directory in advance
 # Run with `namada-test.sh ${namada_dir}`
 
 set -xe
@@ -15,7 +15,7 @@ fi
 cd $(dirname $0)
 IBC_RS_DIR=${PWD%/e2e*}
 
-NAMADAC="${NAMADA_DIR}/target/debug/namadac"
+NAMADAC="${NAMADA_DIR}/target/release/namadac"
 DATA_DIR="${IBC_RS_DIR}/data"
 E2E_TEST_LOG="ibc_e2e.log"
 

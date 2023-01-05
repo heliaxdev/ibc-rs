@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # This script sets up 2 Namada chains locally
-# `make build` and `make build-wasm-scripts` on Namada directory in advance
+# `make build-release` and `make build-wasm-scripts` on Namada directory in advance
 # Run with `setup-namada.sh ${namada_dir}`
 
 set -e
@@ -16,9 +16,9 @@ cd $(dirname $0)
 IBC_RS_DIR=${PWD%/scripts*}
 
 # edit for your environment
-NAMADAC="${NAMADA_DIR}/target/debug/namadac"
-NAMADAN="${NAMADA_DIR}/target/debug/namadan"
-NAMADAW="${NAMADA_DIR}/target/debug/namadaw"
+NAMADAC="${NAMADA_DIR}/target/release/namadac"
+NAMADAN="${NAMADA_DIR}/target/release/namadan"
+NAMADAW="${NAMADA_DIR}/target/release/namadaw"
 GENESIS_PATH_A="${NAMADA_DIR}/genesis/e2e-tests-single-node.toml"
 GENESIS_PATH_B="${NAMADA_DIR}/genesis/e2e-tests-single-node-b.toml"
 CHECKSUM_PATH="${NAMADA_DIR}/wasm/checksums.json"
