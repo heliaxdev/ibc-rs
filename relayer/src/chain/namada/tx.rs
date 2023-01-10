@@ -67,6 +67,7 @@ impl NamadaChain {
             gas_limit,
             signed_tx,
             Default::default(),
+            None,
         );
 
         let tx = wrapper_tx

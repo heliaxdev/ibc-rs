@@ -21,7 +21,7 @@ E2E_TEST_LOG="ibc_e2e.log"
 
 LEDGER_ADDR_A="127.0.0.1:27657"
 LEDGER_ADDR_B="127.0.0.1:28657"
-INITIAL_BALANCE=2000
+INITIAL_BALANCE=10000
 
 function init_relayer_balance() {
   local suffix=$1
