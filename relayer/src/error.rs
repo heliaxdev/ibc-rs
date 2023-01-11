@@ -8,6 +8,7 @@ use humantime::format_duration;
 use namada::ledger::queries::tm::Error as NamadaQueryError;
 use namada::tendermint::Error as AbciPlusTmError;
 use namada::tendermint_proto::Error as AbciPlusTmProtoError;
+use namada::types::token::Amount;
 use prost::{DecodeError, EncodeError};
 use tendermint::Error as TendermintError;
 use tendermint_light_client::{
@@ -522,6 +523,13 @@ define_error! {
         NamadaQuery
             { error: NamadaQueryError }
             |e|  { format!("Namada ABCI query returned an error: {:?}", e.error) },
+
+        NamadaTxFee
+            {
+                balance: Amount,
+                fee: Amount
+            }
+            |e|  { format!("The relayer doesn't have enough balance for Namada transaction fee: balance {}, fee {}", e.balance, e.fee) },
 
         // for different tendermint-rs
         AbciPlusRpc

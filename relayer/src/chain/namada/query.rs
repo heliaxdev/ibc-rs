@@ -1,15 +1,20 @@
 use core::str::FromStr;
 
+use borsh::BorshDeserialize;
 use ibc::events::IbcEvent;
 use ibc::Height as ICSHeight;
 use ibc_proto::ibc::core::commitment::v1::MerkleProof;
 use namada::ibc::core::ics23_commitment::merkle::convert_tm_to_ics_merkle_proof;
 use namada::ibc::events::{from_tx_response_event, IbcEvent as NamadaIbcEvent};
 use namada::ibc::Height as NamadaIcsHeight;
+use namada::ledger::parameters::storage as parameter_storage;
+use namada::ledger::queries::tm::Error as QueryError;
 use namada::ledger::queries::RPC;
 use namada::tendermint::abci::tag::Tag;
 use namada::tendermint::abci::Event as NamadaTmEvent;
+use namada::types::address::Address;
 use namada::types::storage::{BlockHeight, Epoch, Key, PrefixValue};
+use namada::types::token::{self, Amount};
 use prost::Message;
 use tendermint_rpc::query::Query;
 use tendermint_rpc_abciplus::query::Query as AbciPlusQuery;
@@ -108,6 +113,18 @@ impl NamadaChain {
             }
         }
         Ok(ibc_events)
+    }
+
+    pub fn query_balance(&self, token: &Address, owner: &Address) -> Result<Amount, Error> {
+        let key = token::balance_key(&token, &owner);
+        let (value, _) = self.query(key, None, false)?;
+        Amount::try_from_slice(&value[..]).map_err(|e| Error::namada_query(QueryError::Decoding(e)))
+    }
+
+    pub fn query_tx_fee(&self) -> Result<Amount, Error> {
+        let key = parameter_storage::get_wrapper_tx_fees_key();
+        let (value, _) = self.query(key, None, false)?;
+        Amount::try_from_slice(&value[..]).map_err(|e| Error::namada_query(QueryError::Decoding(e)))
     }
 }
 

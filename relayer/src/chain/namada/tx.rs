@@ -42,6 +42,7 @@ impl NamadaChain {
         // the wallet should exist because it's confirmed when the bootstrap
         let wallet_path = Path::new(BASE_WALLET_DIR).join(self.config.id.to_string());
         let mut wallet = Wallet::load(&wallet_path).expect("wallet has not been initialized yet");
+        // This also prevents a signer except for `config.key_name` from sending a token with relayer-cli
         let secret_key = wallet
             .find_key(&self.config.key_name)
             .map_err(Error::namada_key_pair_not_found)?;
@@ -51,6 +52,15 @@ impl NamadaChain {
             .find_address(FEE_TOKEN)
             .ok_or_else(|| Error::namada_address_not_found(FEE_TOKEN.to_string()))?
             .clone();
+        let relayer_addr = wallet
+            .find_address(&self.config.key_name)
+            .ok_or_else(|| Error::namada_address_not_found(self.config.key_name.clone()))?
+            .clone();
+        let balance = self.query_balance(&fee_token_addr, &relayer_addr)?;
+        let fee_amount = self.query_tx_fee()?;
+        if balance < fee_amount {
+            return Err(Error::namada_tx_fee(balance, fee_amount));
+        }
 
         // TODO estimate the gas cost?
 
@@ -59,7 +69,7 @@ impl NamadaChain {
         let epoch = self.query_epoch()?;
         let wrapper_tx = WrapperTx::new(
             Fee {
-                amount: Amount::from(0),
+                amount: Amount::from(fee_amount),
                 token: fee_token_addr,
             },
             &secret_key,
