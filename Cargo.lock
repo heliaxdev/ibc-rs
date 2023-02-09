@@ -3305,7 +3305,7 @@ dependencies = [
 [[package]]
 name = "tendermint"
 version = "0.23.6"
-source = "git+https://github.com/heliaxdev/tendermint-rs?rev=5b19be43bcab6bdb613e877bc768524a92c32699#5b19be43bcab6bdb613e877bc768524a92c32699"
+source = "git+https://github.com/heliaxdev/tendermint-rs?rev=b7e5a75b0d5cc92f90958790716fc061de6305da#b7e5a75b0d5cc92f90958790716fc061de6305da"
 dependencies = [
  "async-trait",
  "bytes",
@@ -3335,7 +3335,7 @@ dependencies = [
 [[package]]
 name = "tendermint-config"
 version = "0.23.6"
-source = "git+https://github.com/heliaxdev/tendermint-rs?rev=5b19be43bcab6bdb613e877bc768524a92c32699#5b19be43bcab6bdb613e877bc768524a92c32699"
+source = "git+https://github.com/heliaxdev/tendermint-rs?rev=b7e5a75b0d5cc92f90958790716fc061de6305da#b7e5a75b0d5cc92f90958790716fc061de6305da"
 dependencies = [
  "flex-error",
  "serde",
@@ -3348,7 +3348,7 @@ dependencies = [
 [[package]]
 name = "tendermint-light-client"
 version = "0.23.6"
-source = "git+https://github.com/heliaxdev/tendermint-rs?rev=5b19be43bcab6bdb613e877bc768524a92c32699#5b19be43bcab6bdb613e877bc768524a92c32699"
+source = "git+https://github.com/heliaxdev/tendermint-rs?rev=b7e5a75b0d5cc92f90958790716fc061de6305da#b7e5a75b0d5cc92f90958790716fc061de6305da"
 dependencies = [
  "contracts",
  "crossbeam-channel 0.4.4",
@@ -3369,7 +3369,7 @@ dependencies = [
 [[package]]
 name = "tendermint-light-client-verifier"
 version = "0.23.6"
-source = "git+https://github.com/heliaxdev/tendermint-rs?rev=5b19be43bcab6bdb613e877bc768524a92c32699#5b19be43bcab6bdb613e877bc768524a92c32699"
+source = "git+https://github.com/heliaxdev/tendermint-rs?rev=b7e5a75b0d5cc92f90958790716fc061de6305da#b7e5a75b0d5cc92f90958790716fc061de6305da"
 dependencies = [
  "derive_more",
  "flex-error",
@@ -3381,7 +3381,7 @@ dependencies = [
 [[package]]
 name = "tendermint-proto"
 version = "0.23.6"
-source = "git+https://github.com/heliaxdev/tendermint-rs?rev=5b19be43bcab6bdb613e877bc768524a92c32699#5b19be43bcab6bdb613e877bc768524a92c32699"
+source = "git+https://github.com/heliaxdev/tendermint-rs?rev=b7e5a75b0d5cc92f90958790716fc061de6305da#b7e5a75b0d5cc92f90958790716fc061de6305da"
 dependencies = [
  "bytes",
  "flex-error",
@@ -3398,7 +3398,7 @@ dependencies = [
 [[package]]
 name = "tendermint-rpc"
 version = "0.23.6"
-source = "git+https://github.com/heliaxdev/tendermint-rs?rev=5b19be43bcab6bdb613e877bc768524a92c32699#5b19be43bcab6bdb613e877bc768524a92c32699"
+source = "git+https://github.com/heliaxdev/tendermint-rs?rev=b7e5a75b0d5cc92f90958790716fc061de6305da#b7e5a75b0d5cc92f90958790716fc061de6305da"
 dependencies = [
  "async-trait",
  "async-tungstenite",
@@ -3431,7 +3431,7 @@ dependencies = [
 [[package]]
 name = "tendermint-testgen"
 version = "0.23.6"
-source = "git+https://github.com/heliaxdev/tendermint-rs?rev=5b19be43bcab6bdb613e877bc768524a92c32699#5b19be43bcab6bdb613e877bc768524a92c32699"
+source = "git+https://github.com/heliaxdev/tendermint-rs?rev=b7e5a75b0d5cc92f90958790716fc061de6305da#b7e5a75b0d5cc92f90958790716fc061de6305da"
 dependencies = [
  "ed25519-dalek",
  "gumdrop",
@@ -3471,18 +3471,18 @@ checksum = "222a222a5bfe1bba4a77b45ec488a741b3cb8872e5e499451fd7d0129c9c7c3d"
 
 [[package]]
 name = "thiserror"
-version = "1.0.36"
+version = "1.0.38"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0a99cb8c4b9a8ef0e7907cd3b617cc8dc04d571c4e73c8ae403d80ac160bb122"
+checksum = "6a9cd18aa97d5c45c6603caea1da6628790b37f7a34b6ca89522331c5180fed0"
 dependencies = [
  "thiserror-impl",
 ]
 
 [[package]]
 name = "thiserror-impl"
-version = "1.0.36"
+version = "1.0.38"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3a891860d3c8d66fec8e73ddb3765f90082374dbaaa833407b904a94f1a7eb43"
+checksum = "1fb327af4685e4d03fa8cbcf1716380da910eeb2bb8be417e7f9fd3fb164f36f"
 dependencies = [
  "proc-macro2",
  "quote",
